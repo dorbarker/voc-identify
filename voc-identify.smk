@@ -36,16 +36,26 @@ rule link_fastqgz:
 	shell:
 		'ln -sr {input} {output}'
 
+# Align needs to request one more thread than is given to minimap2, because
+# minimap2 will use t+1 threads
 rule align:
 	input:
 		rules.index_reference.output,
-		'inputs/{name}.{ext}'
+		multiext('inputs/{name}', '.fasta', '.fastq', '.fastq.gz', '.fq', '.fq.gz')
 	output:
-		'outputs/{name}.sam'
+		'mapped/{name}.bam'
 
 	threads:
 		13
 
 	shell:
-		'minimap2 -t 12 -a {input[0]} {input[1]} > {output}'
+		'minimap2 -t 12 -a {input[0]} {input[1]} | samtools view -b  > {output}'
 
+rule report:
+	input:
+		'mapped/{name}.bam'
+	output:
+		'reports/{name}.txt'
+
+	script:
+		'tabulate_read_matches.py {output[0]}'
