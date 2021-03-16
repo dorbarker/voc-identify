@@ -12,6 +12,7 @@
 
 import pysam
 import argparse
+import itertools
 
 def arguments():
 
@@ -26,8 +27,27 @@ def main():
     pass
 
 
-def load_mutations():
-    pass
+def load_mutations(mutations_path: str):
+
+    groups = {}
+
+    with open(mutations_path, 'r') as f:
+        for idx, line in enumerate(f):
+
+            l = line.strip()
+
+            if l:
+                groups[idx] = {}
+                snps = l.split()
+
+                for snp in snps:
+
+                    position = int(snp[:-1])
+                    nucleotide = snp[-1]
+
+                groups[idx][position] = nucleotide
+
+    return groups
 
 
 def match_reads_to_region():
@@ -47,3 +67,7 @@ def format_report():
 
 def write_report():
     pass
+
+
+if __name__ == "__main__":
+    main()
