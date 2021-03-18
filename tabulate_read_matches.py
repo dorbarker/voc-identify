@@ -53,7 +53,7 @@ def load_mutations(mutations_path: str):
     return groups
 
 
-def get_reads(bam_path: str, ref_path: str):
+def load_reads(bam_path: str, ref_path: str):
 
     with pysam.AlignmentFile(bam_path, reference_filename=ref_path, mode="rb") as aln:
         return list(aln)
@@ -76,25 +76,16 @@ def find_variant_mutations(reads, mutations):
 
     for read in reads:
 
-        results[read.query_name] = set()
+        read_name = read.query_name
 
         seq = read.get_forward_sequence()
 
-        start = read.reference_start
+        pairs = read.get_aligned_pairs()
 
-        for position in mutations:
+        for q, s in pairs:
+            if s in mutations:
 
-            read_offset = position - start
-
-            try:
-                has_mutation = seq[read_offset] == mutations[position]
-
-            except IndexError:
-                has_mutation = False
-
-            if has_mutation:
-                results[read.query_name].add(position)
-
+        results[read_name] = [s for q, s in pairs if s in mutations and seq[q] == mutations[s]]
     return results
 
 
