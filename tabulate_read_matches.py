@@ -82,9 +82,24 @@ def find_variant_mutations(reads, mutations):
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = [s for q, s in pairs if s in mutations and seq[q] == mutations[s]]
+        results[read_name] = [s for q, s in pairs if is_mutant(q, s, seq, mutations)]
 
     return results
+
+
+def is_mutant(read_position, reference_position, read_sequence, mutations):
+
+    if reference_position in mutations:
+
+        try:
+
+            read_nt = read_sequence[read_position]
+            mut_nt = mutations[reference_position]
+
+            return read_nt == mut_nt
+
+        except TypeError:
+            return False
 
 
 def format_report(read_results):
