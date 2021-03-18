@@ -1,6 +1,6 @@
 import argparse
 import pysam
-
+import pandas as pd
 
 def arguments():
 
@@ -30,27 +30,22 @@ def main():
 
 def load_mutations(mutations_path: str):
 
-    groups = {}
+    data = pd.read_csv(mutations_path)
 
-    with open(mutations_path, "r") as f:
-        for idx, line in enumerate(f):
+    vocs = {}
 
-            l = line.strip()
+    for row in data.iterrows():
 
-            if l:
-                groups[idx] = {}
-                snps = l.split()
+        voc = row['PangoLineage']
+        position = int(row['Position']) - 1
+        mutant = row['Alt']
 
-                for snp in snps:
+        if voc not in vocs:
+            vocs[voc] = {}
 
-                    # Convert 1-based reference to
-                    # 0-based for BAM and pysam
-                    position = int(snp[:-1]) - 1
-                    nucleotide = snp[-1]
+        vocs[position] = mutant
 
-                groups[idx][position] = nucleotide
-
-    return groups
+    return vocs
 
 
 def get_reads(bam_path: str, ref_path: str):
