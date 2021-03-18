@@ -82,10 +82,8 @@ def find_variant_mutations(reads, mutations):
 
         pairs = read.get_aligned_pairs()
 
-        for q, s in pairs:
-            if s in mutations:
-
         results[read_name] = [s for q, s in pairs if s in mutations and seq[q] == mutations[s]]
+
     return results
 
 
