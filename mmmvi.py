@@ -102,6 +102,18 @@ def is_mutant(read_position, reference_position, read_sequence, mutations):
             return False
 
 
+def one_index_results(mutation_results):
+
+    oir = {
+        voc_name: {
+            read: [i + 1 for i in positions] for read, positions in voc_results.items()
+        }
+        for voc_name, voc_results in mutation_results.items()
+    }
+
+    return oir
+
+
 def format_report(read_results):
 
     only_mutant_reads = filter(lambda x: read_results[x], read_results)
