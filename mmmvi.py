@@ -1,5 +1,6 @@
 import argparse
 import pysam
+from collections import Counter
 
 
 def arguments():
@@ -112,6 +113,18 @@ def one_index_results(mutation_results):
     }
 
     return oir
+
+
+def format_read_report(oir_results):
+
+    return pd.DataFrame(oir_results)
+
+
+def format_summary(mutation_results):
+
+    count_of_reads_with_N_snps = mutation_results.applymap(len).agg(Counter)
+
+    return pd.DataFrame(count_of_reads_with_N_snps.to_dict()).transpose()
 
 
 def format_report(read_results):
