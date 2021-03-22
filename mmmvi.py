@@ -1,17 +1,24 @@
 import argparse
+
+import itertools
 import pysam
+from collections import Counter
 import pandas as pd
 from pathlib import Path
+
 
 def arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--bam", required=True)
 
-    parser.add_argument("--reference", required=True)
+    parser.add_argument("--bam", required=True, type=Path)
 
-    parser.add_argument("--mutations", required=True)
+    parser.add_argument("--reference", required=True, type=Path)
+
+    parser.add_argument("--mutations", required=True, type=Path)
+
+    parser.add_argument('--outdir', required = True, type = Path)
 
     return parser.parse_args()
 
@@ -25,8 +32,6 @@ def main():
     reads = get_reads(args.bam, args.reference)
 
     mutant_reads = find_mutations(reads, vocs)
-
-    print(format_report(mutant_reads))
 
 
 def load_mutations(mutations_path: Path):
@@ -55,7 +60,7 @@ def load_mutations(mutations_path: Path):
     return vocs
 
 
-def get_reads(bam_path: str, ref_path: str):
+def load_reads(bam_path: Path, ref_path: Path):
 
     with pysam.AlignmentFile(bam_path, reference_filename=ref_path, mode="rb") as aln:
         return list(aln)
@@ -78,39 +83,119 @@ def find_variant_mutations(reads, mutations):
 
     for read in reads:
 
-        results[read.query_name] = set()
+        read_name = read.query_name
 
         seq = read.get_forward_sequence()
 
-        start = read.reference_start
+        pairs = read.get_aligned_pairs()
 
-        for position in mutations:
-
-            read_offset = position - start
-
-            try:
-                has_mutation = seq[read_offset] == mutations[position]
-
-            except IndexError:
-                has_mutation = False
-
-            if has_mutation:
-                results[read.query_name].add(position)
+        results[read_name] = [s for q, s in pairs if is_mutant(q, s, seq, mutations)]
 
     return results
 
 
-def format_report(read_results):
+def is_mutant(read_position, reference_position, read_sequence, mutations):
 
-    only_mutant_reads = filter(lambda x: read_results[x], read_results)
+    if reference_position in mutations:
 
-    sorted_all_reads = sorted(
-        read_results, key=lambda x: len(read_results[x]), reverse=True
-    )
+        try:
+
+            read_nt = read_sequence[read_position]
+            mut_nt = mutations[reference_position]
+
+            return read_nt == mut_nt
+
+        except TypeError:
+            return False
 
 
-def write_report():
-    pass
+def one_index_results(mutation_results):
+
+    oir = {
+        voc_name: {
+            read: [i + 1 for i in positions] for read, positions in voc_results.items()
+        }
+        for voc_name, voc_results in mutation_results.items()
+    }
+
+    return oir
+
+
+def format_read_report(oir_results):
+
+    return pd.DataFrame(oir_results)
+
+
+def format_summary(mutation_results):
+
+    mutation_df = pd.DataFrame(mutation_results)
+
+    count_of_reads_with_N_snps = mutation_df.applymap(len).agg(Counter)
+
+    return pd.DataFrame(count_of_reads_with_N_snps.to_dict()).transpose()
+
+
+def format_cooccurence_matrix(mutation_result, mutations, wt):
+    # For one VoC at a time
+
+    lookup = {pos: f"{wt[pos]}{pos+1}{mutations[pos]}" for pos in mutations.keys()}
+
+    mx = pd.DataFrame(data=0, index=lookup.values(), columns=lookup.values())
+
+    # for each mutation position
+    for positions in mutation_result.values():
+        # self-vs-self
+        for position in positions:
+            name = lookup[position]
+
+            mx.loc[name, name] += 1
+
+        for row, col in itertools.permutations(positions, r=2):
+
+            row_name = lookup[row]
+            col_name = lookup[col]
+
+            mx.loc[row_name, col_name] += 1
+
+    return mx
+
+
+def format_cooccurence_matrices(mutation_results, vocs):
+
+    *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
+
+    return {
+        v: format_coccurence_matrix(mutation_results[v], vocs[v], vocs[wt])
+        for v in variants
+    }
+
+
+def format_reports(mutation_results, vocs):
+
+    oir_results = one_index_results(mutation_results)
+
+    reports = {
+        "read_report": format_read_report(oir_results),
+        "summary": format_summary(mutation_results),
+        "cooccurence_matrices": format_cooccurence_matrices(mutation_results, vocs),
+    }
+
+    return reports
+
+
+def write_reports(reports, outdir: Path):
+
+    outdir.joinpath("cooccurence_matrices").mkdir(parents=True, exist_ok = True)
+
+    reports["read_report"].to_csv(outdir / "read_report.csv")
+
+    reports["summary"].to_csv(outdir / "summary.csv")
+
+    for variant, data in reports['cooccurence_matrices'].items():
+
+        p = outdir.joinpath('cooccurence_matrices', f'{variant}.csv')
+
+        data.to_csv(p)
 
 
 if __name__ == "__main__":
