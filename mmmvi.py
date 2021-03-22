@@ -1,17 +1,20 @@
 import argparse
+import itertools
 import pysam
 from collections import Counter
+import pandas as pd
+from pathlib import Path
 
 
 def arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--bam", required=True)
+    parser.add_argument("--bam", required=True, type=Path)
 
-    parser.add_argument("--reference", required=True)
+    parser.add_argument("--reference", required=True, type=Path)
 
-    parser.add_argument("--mutations", required=True)
+    parser.add_argument("--mutations", required=True, type=Path)
 
     return parser.parse_args()
 
@@ -122,22 +125,64 @@ def format_read_report(oir_results):
 
 def format_summary(mutation_results):
 
-    count_of_reads_with_N_snps = mutation_results.applymap(len).agg(Counter)
+    mutation_df = pd.DataFrame(mutation_results)
+
+    count_of_reads_with_N_snps = mutation_df.applymap(len).agg(Counter)
 
     return pd.DataFrame(count_of_reads_with_N_snps.to_dict()).transpose()
 
 
-def format_report(read_results):
+def format_cooccurence_matrix(mutation_result, mutations, wt):
+    # For one VoC at a time
 
-    only_mutant_reads = filter(lambda x: read_results[x], read_results)
+    lookup = {pos: f"{wt[pos]}{pos+1}{mutations[pos]}" for pos in mutations.keys()}
 
-    sorted_all_reads = sorted(
-        read_results, key=lambda x: len(read_results[x]), reverse=True
-    )
+    mx = pd.DataFrame(data=0, index=lookup.values(), columns=lookup.values())
+
+    # for each mutation position
+    for positions in mutation_result.values():
+        # self-vs-self
+        for position in positions:
+            name = lookup[position]
+
+            mx.loc[name, name] += 1
+
+        for row, col in itertools.permutations(positions, r=2):
+
+            row_name = lookup[row]
+            col_name = lookup[col]
+
+            mx.loc[row_name, col_name] += 1
+
+    return mx
 
 
-def write_report():
-    pass
+def format_cooccurence_matrices(mutation_results, vocs):
+
+    *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
+
+    return {
+        v: format_coccurence_matrix(mutation_results[v], vocs[v], vocs[wt])
+        for v in variants
+    }
+
+
+def format_reports(mutation_results):
+
+    oir_results = one_index_results(mutation_results)
+
+    reports = {
+        "read_report": format_read_report(oir_results),
+        "summary": format_summary(mutation_results),
+        "cooccurence_matrices": format_cooccurence_matrices(mutation_results, vocs),
+    }
+
+    return reports
+
+
+def write_reports(reports, outdir):
+
+    reports["read_report"].to_csv("outdir")
 
 
 if __name__ == "__main__":
