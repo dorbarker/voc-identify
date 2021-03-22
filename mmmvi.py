@@ -1,5 +1,4 @@
 import argparse
-
 import itertools
 import pysam
 from collections import Counter
@@ -28,9 +27,13 @@ def main():
 
     vocs = load_mutations(args.mutations)
 
-    reads = get_reads(args.bam, args.reference)
+    reads = load_reads(args.bam, args.reference)
 
-    mutant_reads = find_mutations(reads, vocs)
+    mutation_results = find_mutations(reads, vocs)
+
+    reports = format_reports(mutation_results, vocs)
+
+    write_reports(reports, args.outdir)
 
 
 def load_mutations(mutations_path: Path):
@@ -164,7 +167,7 @@ def format_cooccurence_matrices(mutation_results, vocs):
     *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
 
     return {
-        v: format_coccurence_matrix(mutation_results[v], vocs[v], vocs[wt])
+        v: format_cooccurence_matrix(mutation_results[v], vocs[v], vocs[wt])
         for v in variants
     }
 
