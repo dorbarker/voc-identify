@@ -11,14 +11,13 @@ def arguments():
 
     parser = argparse.ArgumentParser()
 
-
     parser.add_argument("--bam", required=True, type=Path)
 
     parser.add_argument("--reference", required=True, type=Path)
 
     parser.add_argument("--mutations", required=True, type=Path)
 
-    parser.add_argument('--outdir', required = True, type = Path)
+    parser.add_argument("--outdir", required=True, type=Path)
 
     return parser.parse_args()
 
@@ -36,26 +35,26 @@ def main():
 
 def load_mutations(mutations_path: Path):
 
-    data = pd.read_csv(mutations_path, sep = "\t")
+    data = pd.read_csv(mutations_path, sep="\t")
 
-    vocs = {'reference': {}}
+    vocs = {"reference": {}}
 
     for idx, row in data.iterrows():
 
         # Currently only single-base substitutions are supported
-        if row['Type'] == 'Del' or len(row['Alt']) > 1:
+        if row["Type"] == "Del" or len(row["Alt"]) > 1:
             continue
 
-        voc = row['PangoLineage']
-        position = int(row['Position']) - 1
-        mutant = row['Alt']
+        voc = row["PangoLineage"]
+        position = int(row["Position"]) - 1
+        mutant = row["Alt"]
 
         if voc not in vocs:
             vocs[voc] = {}
 
         vocs[voc][position] = mutant
 
-        vocs['reference'][position] = row['Ref']
+        vocs["reference"][position] = row["Ref"]
 
     return vocs
 
@@ -185,15 +184,15 @@ def format_reports(mutation_results, vocs):
 
 def write_reports(reports, outdir: Path):
 
-    outdir.joinpath("cooccurence_matrices").mkdir(parents=True, exist_ok = True)
+    outdir.joinpath("cooccurence_matrices").mkdir(parents=True, exist_ok=True)
 
     reports["read_report"].to_csv(outdir / "read_report.csv")
 
     reports["summary"].to_csv(outdir / "summary.csv")
 
-    for variant, data in reports['cooccurence_matrices'].items():
+    for variant, data in reports["cooccurence_matrices"].items():
 
-        p = outdir.joinpath('cooccurence_matrices', f'{variant}.csv')
+        p = outdir.joinpath("cooccurence_matrices", f"{variant}.csv")
 
         data.to_csv(p)
 
