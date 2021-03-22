@@ -1,4 +1,5 @@
 import argparse
+
 import itertools
 import pysam
 from collections import Counter
@@ -9,6 +10,7 @@ from pathlib import Path
 def arguments():
 
     parser = argparse.ArgumentParser()
+
 
     parser.add_argument("--bam", required=True, type=Path)
 
@@ -32,29 +34,30 @@ def main():
     mutant_reads = find_mutations(reads, vocs)
 
 
-def load_mutations(mutations_path: str):
+def load_mutations(mutations_path: Path):
 
-    groups = {}
+    data = pd.read_csv(mutations_path, sep = "\t")
 
-    with open(mutations_path, "r") as f:
-        for idx, line in enumerate(f):
+    vocs = {'reference': {}}
 
-            l = line.strip()
+    for idx, row in data.iterrows():
 
-            if l:
-                groups[idx] = {}
-                snps = l.split()
+        # Currently only single-base substitutions are supported
+        if row['Type'] == 'Del' or len(row['Alt']) > 1:
+            continue
 
-                for snp in snps:
+        voc = row['PangoLineage']
+        position = int(row['Position']) - 1
+        mutant = row['Alt']
 
-                    # Convert 1-based reference to
-                    # 0-based for BAM and pysam
-                    position = int(snp[:-1]) - 1
-                    nucleotide = snp[-1]
+        if voc not in vocs:
+            vocs[voc] = {}
 
-                groups[idx][position] = nucleotide
+        vocs[voc][position] = mutant
 
-    return groups
+        vocs['reference'][position] = row['Ref']
+
+    return vocs
 
 
 def load_reads(bam_path: Path, ref_path: Path):
@@ -193,6 +196,7 @@ def write_reports(reports, outdir: Path):
         p = outdir.joinpath('cooccurence_matrices', f'{variant}.csv')
 
         data.to_csv(p)
+
 
 if __name__ == "__main__":
     main()
