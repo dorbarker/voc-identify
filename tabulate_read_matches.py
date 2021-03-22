@@ -28,13 +28,17 @@ def main():
     print(format_report(mutant_reads))
 
 
-def load_mutations(mutations_path: str):
+def load_mutations(mutations_path: Path):
 
     data = pd.read_csv(mutations_path)
 
-    vocs = {}
+    vocs = {'reference': {}}
 
     for row in data.iterrows():
+
+        # Currently only single-base substitutions are supported
+        if row['Type'] == 'Del' or len(row['Alt']) > 1:
+            continue
 
         voc = row['PangoLineage']
         position = int(row['Position']) - 1
@@ -43,7 +47,9 @@ def load_mutations(mutations_path: str):
         if voc not in vocs:
             vocs[voc] = {}
 
-        vocs[position] = mutant
+        vocs[voc][position] = mutant
+
+        vocs['reference'] = row['Ref']
 
     return vocs
 
