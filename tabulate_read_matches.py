@@ -1,6 +1,7 @@
 import argparse
 import pysam
 import pandas as pd
+from pathlib import Path
 
 def arguments():
 
@@ -30,11 +31,11 @@ def main():
 
 def load_mutations(mutations_path: Path):
 
-    data = pd.read_csv(mutations_path)
+    data = pd.read_csv(mutations_path, sep = "\t")
 
     vocs = {'reference': {}}
 
-    for row in data.iterrows():
+    for idx, row in data.iterrows():
 
         # Currently only single-base substitutions are supported
         if row['Type'] == 'Del' or len(row['Alt']) > 1:
@@ -49,7 +50,7 @@ def load_mutations(mutations_path: Path):
 
         vocs[voc][position] = mutant
 
-        vocs['reference'] = row['Ref']
+        vocs['reference'][position] = row['Ref']
 
     return vocs
 
