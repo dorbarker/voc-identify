@@ -16,6 +16,8 @@ def arguments():
 
     parser.add_argument("--mutations", required=True, type=Path)
 
+    parser.add_argument('--outdir', required = True, type = Path)
+
     return parser.parse_args()
 
 
@@ -28,8 +30,6 @@ def main():
     reads = get_reads(args.bam, args.reference)
 
     mutant_reads = find_mutations(reads, vocs)
-
-    print(format_report(mutant_reads))
 
 
 def load_mutations(mutations_path: str):
@@ -57,7 +57,7 @@ def load_mutations(mutations_path: str):
     return groups
 
 
-def load_reads(bam_path: str, ref_path: str):
+def load_reads(bam_path: Path, ref_path: Path):
 
     with pysam.AlignmentFile(bam_path, reference_filename=ref_path, mode="rb") as aln:
         return list(aln)
@@ -167,7 +167,7 @@ def format_cooccurence_matrices(mutation_results, vocs):
     }
 
 
-def format_reports(mutation_results):
+def format_reports(mutation_results, vocs):
 
     oir_results = one_index_results(mutation_results)
 
@@ -180,10 +180,19 @@ def format_reports(mutation_results):
     return reports
 
 
-def write_reports(reports, outdir):
+def write_reports(reports, outdir: Path):
 
-    reports["read_report"].to_csv("outdir")
+    outdir.joinpath("cooccurence_matrices").mkdir(parents=True, exist_ok = True)
 
+    reports["read_report"].to_csv(outdir / "read_report.csv")
+
+    reports["summary"].to_csv(outdir / "summary.csv")
+
+    for variant, data in reports['cooccurence_matrices'].items():
+
+        p = outdir.joinpath('cooccurence_matrices', f'{variant}.csv')
+
+        data.to_csv(p)
 
 if __name__ == "__main__":
     main()
