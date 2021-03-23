@@ -99,6 +99,17 @@ def find_mutations(reads, vocs):
 
 def find_variant_mutations(reads, mutations):
 
+    if is_illumina(reads):
+        result = find_variant_mutations_illumina(reads, mutations)
+
+    else:
+        result = find_variant_mutations_nanopore(reads, mutations)
+
+    return result
+
+
+def find_variant_mutations_nanopore(reads, mutations):
+
     results = {}
 
     for read in reads:
@@ -106,6 +117,23 @@ def find_variant_mutations(reads, mutations):
         read_name = read.query_name
 
         seq = read.query_sequence
+
+        pairs = read.get_aligned_pairs()
+
+        results[read_name] = [s for q, s in pairs if is_mutant(q, s, seq, mutations)]
+
+    return results
+
+
+def find_variant_mutations_illumina(reads, mutations):
+
+    results = {}
+
+    for read in reads:
+
+        read_name = read.query_name
+
+        seq = read.get_forward_sequence()
 
         pairs = read.get_aligned_pairs()
 
