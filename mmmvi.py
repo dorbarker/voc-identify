@@ -87,7 +87,7 @@ def find_variant_mutations(reads, mutations):
 
         read_name = read.query_name
 
-        seq = read.get_forward_sequence()
+        seq = read.query_sequence
 
         pairs = read.get_aligned_pairs()
 
