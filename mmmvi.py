@@ -18,6 +18,13 @@ def arguments():
 
     parser.add_argument("--outdir", required=True, type=Path)
 
+    parser.add_argument(
+        "-d",
+        "--delimiter",
+        default="\t",
+        help="Delimiter character for tabular inpu and output [TAB]",
+    )
+
     return parser.parse_args()
 
 
@@ -25,7 +32,7 @@ def main():
 
     args = arguments()
 
-    vocs = load_mutations(args.mutations)
+    vocs = load_mutations(args.mutations, args.delimiter)
 
     reads = load_reads(args.bam, args.reference)
 
@@ -33,12 +40,12 @@ def main():
 
     reports = format_reports(mutation_results, vocs)
 
-    write_reports(reports, args.outdir)
+    write_reports(reports, args.outdir, args.delimiter)
 
 
-def load_mutations(mutations_path: Path):
+def load_mutations(mutations_path: Path, delimiter: str):
 
-    data = pd.read_csv(mutations_path, sep="\t")
+    data = pd.read_csv(mutations_path, sep=delimiter)
 
     vocs = {"reference": {}}
 
@@ -185,19 +192,19 @@ def format_reports(mutation_results, vocs):
     return reports
 
 
-def write_reports(reports, outdir: Path):
+def write_reports(reports, outdir: Path, delimiter):
 
     outdir.joinpath("cooccurence_matrices").mkdir(parents=True, exist_ok=True)
 
-    reports["read_report"].to_csv(outdir / "read_report.csv")
+    reports["read_report"].to_csv(outdir / "read_report.txt", sep=delimiter)
 
-    reports["summary"].to_csv(outdir / "summary.csv")
+    reports["summary"].to_csv(outdir / "summary.txt", sep=delimiter)
 
     for variant, data in reports["cooccurence_matrices"].items():
 
-        p = outdir.joinpath("cooccurence_matrices", f"{variant}.csv")
+        p = outdir.joinpath("cooccurence_matrices", f"{variant}.txt")
 
-        data.to_csv(p)
+        data.to_csv(p, sep=delimiter)
 
 
 if __name__ == "__main__":
