@@ -43,6 +43,17 @@ def main():
     write_reports(reports, args.outdir, args.delimiter)
 
 
+def is_illumina(reads):
+    # Heuristically determine if the reads are paired or not.
+    #
+    # If duplicated read names outnumber singleton read names by
+    # a factor of at least 10:1, then it's Illumina
+
+    counts = Counter(Counter(read.query_name for read in reads).values())
+
+    return (counts[2] / counts[1]) >= 10
+
+
 def load_mutations(mutations_path: Path, delimiter: str):
 
     data = pd.read_csv(mutations_path, sep=delimiter)
