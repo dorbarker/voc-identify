@@ -5,6 +5,7 @@ from collections import Counter
 import pandas as pd
 from pathlib import Path
 
+complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
 
 def arguments():
 
@@ -41,6 +42,17 @@ def main():
     reports = format_reports(mutation_results, vocs)
 
     write_reports(reports, args.outdir, args.delimiter)
+
+
+def is_illumina(reads):
+    # Heuristically determine if the reads are paired or not.
+    #
+    # If duplicated read names outnumber singleton read names by
+    # a factor of at least 10:1, then it's Illumina
+
+    counts = Counter(Counter(read.query_name for read in reads).values())
+
+    return (counts[2] / counts[1]) >= 10
 
 
 def load_mutations(mutations_path: Path, delimiter: str):
@@ -88,6 +100,17 @@ def find_mutations(reads, vocs):
 
 def find_variant_mutations(reads, mutations):
 
+    if is_illumina(reads):
+        result = find_variant_mutations_illumina(reads, mutations)
+
+    else:
+        result = find_variant_mutations_nanopore(reads, mutations)
+
+    return result
+
+
+def find_variant_mutations_nanopore(reads, mutations):
+
     results = {}
 
     for read in reads:
@@ -98,14 +121,41 @@ def find_variant_mutations(reads, mutations):
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = [s for q, s in pairs if is_mutant(q, s, seq, mutations)]
+        results[read_name] = [
+            s for q, s in pairs if is_mutant(q, s, seq, False, mutations)
+        ]
 
     return results
 
 
-def is_mutant(read_position, reference_position, read_sequence, mutations):
+def find_variant_mutations_illumina(reads, mutations):
+
+    results = {}
+
+    for read in reads:
+
+        revcomp = read.is_reverse
+        orientation_tag = "rev" if revcomp else "fwd"
+        read_name = f"{read.query_name}:{orientation_tag}"
+
+        seq = read.get_forward_sequence()
+
+        pairs = read.get_aligned_pairs()
+
+        results[read_name] = [
+            s for q, s in pairs if is_mutant(q, s, seq, revcomp, mutations)
+        ]
+
+    return results
+
+
+def is_mutant(read_position, reference_position, read_sequence, revcomp, mutations):
+
 
     if reference_position in mutations:
+
+        if revcomp:
+            read_sequence = "".join([complements[nt] for nt in reversed(read_sequence)])
 
         try:
 
