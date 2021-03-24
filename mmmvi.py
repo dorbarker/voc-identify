@@ -5,6 +5,7 @@ from collections import Counter
 import pandas as pd
 from pathlib import Path
 
+complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
 
 def arguments():
 
@@ -120,7 +121,9 @@ def find_variant_mutations_nanopore(reads, mutations):
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = [s for q, s in pairs if is_mutant(q, s, seq, mutations)]
+        results[read_name] = [
+            s for q, s in pairs if is_mutant(q, s, seq, False, mutations)
+        ]
 
     return results
 
@@ -131,20 +134,28 @@ def find_variant_mutations_illumina(reads, mutations):
 
     for read in reads:
 
-        read_name = read.query_name
+        revcomp = read.is_reverse
+        orientation_tag = "rev" if revcomp else "fwd"
+        read_name = f"{read.query_name}:{orientation_tag}"
 
         seq = read.get_forward_sequence()
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = [s for q, s in pairs if is_mutant(q, s, seq, mutations)]
+        results[read_name] = [
+            s for q, s in pairs if is_mutant(q, s, seq, revcomp, mutations)
+        ]
 
     return results
 
 
-def is_mutant(read_position, reference_position, read_sequence, mutations):
+def is_mutant(read_position, reference_position, read_sequence, revcomp, mutations):
+
 
     if reference_position in mutations:
+
+        if revcomp:
+            read_sequence = "".join([complements[nt] for nt in reversed(read_sequence)])
 
         try:
 
