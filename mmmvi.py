@@ -4,8 +4,14 @@ import pysam
 from collections import Counter
 import pandas as pd
 from pathlib import Path
+from typing import Dict, List
 
 complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
+
+Mutations = Dict[int, str]
+VoCs = Dict[str, Mutations]
+Reads = List[pysam.AlignedSegment]
+MutationResults = Dict[str, List[int]]
 
 
 def arguments():
@@ -45,7 +51,7 @@ def main():
     write_reports(reports, args.outdir, args.delimiter)
 
 
-def is_illumina(reads):
+def is_illumina(reads: Reads) -> bool:
     # Heuristically determine if the reads are paired or not.
     #
     # If duplicated read names outnumber singleton read names by
@@ -56,7 +62,7 @@ def is_illumina(reads):
     return (counts[2] / counts[1]) >= 10
 
 
-def load_mutations(mutations_path: Path, delimiter: str):
+def load_mutations(mutations_path: Path, delimiter: str) -> VoCs:
 
     data = pd.read_csv(mutations_path, sep=delimiter)
 
@@ -82,13 +88,13 @@ def load_mutations(mutations_path: Path, delimiter: str):
     return vocs
 
 
-def load_reads(bam_path: Path, ref_path: Path):
+def load_reads(bam_path: Path, ref_path: Path) -> Reads:
 
     with pysam.AlignmentFile(bam_path, reference_filename=ref_path, mode="rb") as aln:
         return list(aln)
 
 
-def find_mutations(reads, vocs):
+def find_mutations(reads: Reads, vocs: VoCs) -> Dict[str, MutationResults]:
 
     results = {}
 
@@ -99,7 +105,7 @@ def find_mutations(reads, vocs):
     return results
 
 
-def find_variant_mutations(reads, mutations):
+def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResults:
 
     if is_illumina(reads):
         result = find_variant_mutations_illumina(reads, mutations)
@@ -110,7 +116,9 @@ def find_variant_mutations(reads, mutations):
     return result
 
 
-def find_variant_mutations_nanopore(reads, mutations):
+def find_variant_mutations_nanopore(
+    reads: Reads, mutations: Mutations
+) -> MutationResults:
 
     results = {}
 
@@ -129,7 +137,9 @@ def find_variant_mutations_nanopore(reads, mutations):
     return results
 
 
-def find_variant_mutations_illumina(reads, mutations):
+def find_variant_mutations_illumina(
+    reads: Reads, mutations: Mutations
+) -> MutationResults:
 
     results = {}
 
@@ -150,7 +160,13 @@ def find_variant_mutations_illumina(reads, mutations):
     return results
 
 
-def is_mutant(read_position, reference_position, read_sequence, revcomp, mutations):
+def is_mutant(
+    read_position: int,
+    reference_position: int,
+    read_sequence: str,
+    revcomp: bool,
+    mutations: Mutations,
+) -> bool:
 
     if reference_position in mutations:
 
@@ -168,7 +184,9 @@ def is_mutant(read_position, reference_position, read_sequence, revcomp, mutatio
             return False
 
 
-def one_index_results(mutation_results):
+def one_index_results(
+    mutation_results: Dict[str, MutationResults]
+) -> Dict[str, MutationResults]:
 
     oir = {
         voc_name: {
@@ -180,7 +198,7 @@ def one_index_results(mutation_results):
     return oir
 
 
-def format_read_report(oir_results):
+def format_read_report(oir_results: Dict[str, MutationResults]) -> pd.DataFrame:
 
     return pd.DataFrame(oir_results)
 
