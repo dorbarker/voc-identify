@@ -7,6 +7,7 @@ from pathlib import Path
 
 complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
 
+
 def arguments():
 
     parser = argparse.ArgumentParser()
@@ -151,7 +152,6 @@ def find_variant_mutations_illumina(reads, mutations):
 
 def is_mutant(read_position, reference_position, read_sequence, revcomp, mutations):
 
-
     if reference_position in mutations:
 
         if revcomp:
@@ -194,7 +194,7 @@ def format_summary(mutation_results):
     return pd.DataFrame(count_of_reads_with_N_snps.to_dict()).transpose()
 
 
-def format_cooccurence_matrix(mutation_result, mutations, wt):
+def format_cooccurence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
     # For one VoC at a time
 
     lookup = {pos: f"{wt[pos]}{pos+1}{mutations[pos]}" for pos in mutations.keys()}
@@ -219,6 +219,39 @@ def format_cooccurence_matrix(mutation_result, mutations, wt):
     return mx
 
 
+def format_relative_coocurence_matrix(coocurence_matrix: pd.DataFrame) -> pd.DataFrame:
+
+    rows = []
+
+    for denominator_name in coocurence_matrix.columns:
+
+        denominator = coocurence_matrix.loc[denominator_name, denominator_name]
+
+        for numerator_name in coocurence_matrix.index:
+
+            numerator = coocurence_matrix.loc[numerator_name, denominator_name]
+
+            quotient = numerator / denominator
+
+            rows.append(
+                {
+                    "denominator": denominator_name,
+                    "numerator": numerator_name,
+                    "ratio": quotient,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def format_relative_coocurence_matrices(absolute_coocurrence_matrices):
+
+    return {
+        v: format_relative_coocurence_matrix(mx)
+        for v, mx in absolute_coocurrence_matrices.items()
+    }
+
+
 def format_cooccurence_matrices(mutation_results, vocs):
 
     *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
@@ -236,25 +269,45 @@ def format_reports(mutation_results, vocs):
     reports = {
         "read_report": format_read_report(oir_results),
         "summary": format_summary(mutation_results),
-        "cooccurence_matrices": format_cooccurence_matrices(mutation_results, vocs),
+        "absolute_cooccurence_matrices": format_cooccurence_matrices(
+            mutation_results, vocs
+        ),
     }
-
+    reports["relative_cooccurence_matrices"] = format_relative_coocurence_matrices(
+        reports["absolute_cooccurence_matrices"]
+    )
     return reports
+
+
+def write_cooccurence_matrix(
+    variant: str, directory: Path, data: pd.DataFrame, delimiter: str
+) -> None:
+
+    p = directory.joinpath(f"{variant}.txt")
+    data.to_csv(p, sep=delimiter)
 
 
 def write_reports(reports, outdir: Path, delimiter):
 
-    outdir.joinpath("cooccurence_matrices").mkdir(parents=True, exist_ok=True)
+    matrices_path = outdir.joinpath("cooccurence_matrices")
+
+    absolute_matrices = matrices_path.joinpath("absolute")
+    absolute_matrices.mkdir(parents=True, exist_ok=True)
+
+    relative_matrices = matrices_path.joinpath("relative")
+    relative_matrices.mkdir(parents=True, exist_ok=True)
 
     reports["read_report"].to_csv(outdir / "read_report.txt", sep=delimiter)
 
     reports["summary"].to_csv(outdir / "summary.txt", sep=delimiter)
 
-    for variant, data in reports["cooccurence_matrices"].items():
+    for variant, data in reports["absolute_cooccurence_matrices"].items():
 
-        p = outdir.joinpath("cooccurence_matrices", f"{variant}.txt")
+        write_cooccurence_matrix(variant, absolute_matrices, data, delimiter)
 
-        data.to_csv(p, sep=delimiter)
+    for variant, data in reports["relative_cooccurence_matrices"].items():
+
+        write_cooccurence_matrix(variant, relative_matrices, data, delimiter)
 
 
 if __name__ == "__main__":
