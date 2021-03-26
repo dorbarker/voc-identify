@@ -90,7 +90,9 @@ def load_mutations(mutations_path: Path, delimiter: str) -> VoCs:
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
 
-    with pysam.AlignmentFile(bam_path, reference_filename=ref_path, mode="rb") as aln:
+    with pysam.AlignmentFile(
+        bam_path, reference_filename=str(ref_path), mode="rb"
+    ) as aln:
         return list(aln)
 
 
@@ -249,7 +251,10 @@ def format_relative_coocurence_matrix(coocurence_matrix: pd.DataFrame) -> pd.Dat
 
             numerator = coocurence_matrix.loc[numerator_name, denominator_name]
 
-            quotient = numerator / denominator
+            try:
+                quotient = int(numerator) / int(denominator)
+            except ZeroDivisionError:
+                quotient = 0.0
 
             rows.append(
                 {
