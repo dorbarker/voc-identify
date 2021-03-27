@@ -202,7 +202,11 @@ def one_index_results(
 
 def format_read_report(oir_results: Dict[str, MutationResults]) -> pd.DataFrame:
 
-    return pd.DataFrame(oir_results)
+    read_report = pd.DataFrame(oir_results)
+
+    has_any_results = read_report.applymap(len).apply(sum, axis="columns") > 0
+
+    return read_report[has_any_results]
 
 
 def format_summary(mutation_results):
@@ -285,6 +289,57 @@ def format_cooccurence_matrices(mutation_results, vocs):
     }
 
 
+def format_read_species(read_report: pd.DataFrame, vocs: VoCs) -> pd.DataFrame:
+
+    species = {}
+
+    for _, variant_positions in read_report.iterrows():
+
+        position_nts = set()
+
+        matching_variant = {v: 0 for v in vocs}
+
+        for variant, positions in zip(read_report.columns, variant_positions):
+
+            for position in positions:
+
+                matching_variant[variant] += 1
+
+                # convert between 1-based read_report and 0-based vocs
+                voc_pos = position - 1
+
+                position_nt = (position, vocs[variant][voc_pos])
+                position_nts.add(position_nt)
+
+        if not position_nts:  # reads matching no VoCs
+            continue
+
+        pairs = sorted(position_nts, key=lambda x: x[0])
+        key = str(tuple(f"{p}{nt}" for p, nt in pairs))
+
+        try:
+            species[key]["count"] += 1
+
+        except KeyError:
+
+            locations, nucleotides = zip(*pairs)
+            species[key] = {
+                "positions": locations,
+                "nucleotides": nucleotides,
+                "count": 1,
+            }
+            species[key].update(matching_variant)
+
+    read_species = pd.DataFrame.from_dict(species, orient="index")
+
+    total = read_species["count"].sum()
+
+    read_species["proportion"] = read_species["count"] / total
+
+    print(read_species)
+    return read_species
+
+
 def format_reports(mutation_results, vocs):
 
     oir_results = one_index_results(mutation_results)
@@ -296,6 +351,8 @@ def format_reports(mutation_results, vocs):
             mutation_results, vocs
         ),
     }
+    reports["read_species"] = format_read_species(reports["read_report"], vocs)
+
     reports["relative_cooccurence_matrices"] = format_relative_coocurence_matrices(
         reports["absolute_cooccurence_matrices"]
     )
@@ -310,7 +367,7 @@ def write_cooccurence_matrix(
     data.to_csv(p, sep=delimiter)
 
 
-def write_reports(reports, outdir: Path, delimiter):
+def write_reports(reports, outdir: Path, delimiter: str):
 
     matrices_path = outdir.joinpath("cooccurence_matrices")
 
@@ -323,6 +380,10 @@ def write_reports(reports, outdir: Path, delimiter):
     reports["read_report"].to_csv(outdir / "read_report.txt", sep=delimiter)
 
     reports["summary"].to_csv(outdir / "summary.txt", sep=delimiter)
+
+    reports["read_species"].to_csv(
+        outdir / "read_species.txt", sep=delimiter, index=False
+    )
 
     for variant, data in reports["absolute_cooccurence_matrices"].items():
 
