@@ -10,13 +10,9 @@ present, we can look for cases where multiple nucleotide polymorphisms are
 present on the same read.
 
 # Install
-A proper `conda` installer will be available shortly. 
-
-For the moment, clone the repository and ensure that `mmmvi.py` is available in
-your project directory. This is, of course, terrible and will be fixed at the
-first opportunity.
-
-A snakemake workflow is provided and is described below. 
+```sh
+conda install -c conda-forge -c bioconda -c dorbarker mmmvi
+```
 
 # Running it
 
@@ -40,14 +36,14 @@ The workflow will place output reports for each sample in a corresponding
 directory under `./reports/`:
 
 ```
-.
-├── reports
-│   ├── sample1 
-│   │   ├── cooccurence_matrices
-│   │   │   ├── B.1.1.7.csv
-│   │   │   ├── B.1.351.csv
-│   │   │   ├── B.1.525.csv
-│   │   │   └── P.1.csv
-│   │   ├── read_report.csv
-│   │   └── summary.csv
+reports/
+└── sample1
+    ├── cooccurence_matrices
+    │   ├── absolute
+    │   │   └── B.1.1.7.txt
+    │   └── relative
+    │       └── B.1.1.7.txt
+    ├── read_report.txt
+    ├── read_species.txt
+    └── summary.txt
 ```

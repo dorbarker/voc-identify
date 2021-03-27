@@ -30,7 +30,7 @@ def arguments():
         "-d",
         "--delimiter",
         default="\t",
-        help="Delimiter character for tabular inpu and output [TAB]",
+        help="Delimiter character for tabular input and output [TAB]",
     )
 
     return parser.parse_args()
@@ -336,7 +336,6 @@ def format_read_species(read_report: pd.DataFrame, vocs: VoCs) -> pd.DataFrame:
 
     read_species["proportion"] = read_species["count"] / total
 
-    print(read_species)
     return read_species
 
 
