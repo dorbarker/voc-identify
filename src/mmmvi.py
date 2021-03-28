@@ -289,9 +289,13 @@ def format_cooccurence_matrices(mutation_results, vocs):
     }
 
 
-def format_read_species(read_report: pd.DataFrame, vocs: VoCs) -> pd.DataFrame:
+def format_read_species(
+    mutation_results: MutationResults, read_report: pd.DataFrame, vocs: VoCs
+) -> pd.DataFrame:
 
     species = {}
+
+    total_reads = len(mutation_results["reference"].keys())
 
     for _, variant_positions in read_report.iterrows():
 
@@ -332,9 +336,7 @@ def format_read_species(read_report: pd.DataFrame, vocs: VoCs) -> pd.DataFrame:
 
     read_species = pd.DataFrame.from_dict(species, orient="index")
 
-    total = read_species["count"].sum()
-
-    read_species["proportion"] = read_species["count"] / total
+    read_species["proportion"] = read_species["count"] / total_reads
 
     return read_species
 
@@ -350,7 +352,9 @@ def format_reports(mutation_results, vocs):
             mutation_results, vocs
         ),
     }
-    reports["read_species"] = format_read_species(reports["read_report"], vocs)
+    reports["read_species"] = format_read_species(
+        mutation_results, reports["read_report"], vocs
+    )
 
     reports["relative_cooccurence_matrices"] = format_relative_coocurence_matrices(
         reports["absolute_cooccurence_matrices"]
