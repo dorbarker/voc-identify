@@ -1,8 +1,9 @@
 from setuptools import setup, find_packages
+from src import __version__
 
 setup(
     name="mmmvi",
-    version="0.1.2",
+    version=__version__,
     packages=find_packages(),
     author="Dillon O.R. Barker",
     author_email="dillon.barker@canada.ca",

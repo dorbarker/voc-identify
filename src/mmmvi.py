@@ -6,6 +6,8 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List
 
+from . import __version__
+
 complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
 
 Mutations = Dict[int, str]
@@ -31,6 +33,10 @@ def arguments():
         "--delimiter",
         default="\t",
         help="Delimiter character for tabular input and output [TAB]",
+    )
+
+    parser.add_argument(
+        "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
     )
 
     return parser.parse_args()
