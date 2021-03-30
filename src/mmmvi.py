@@ -372,7 +372,8 @@ def write_cooccurence_matrix(
     variant: str, directory: Path, data: pd.DataFrame, delimiter: str
 ) -> None:
 
-    p = directory.joinpath(f"{variant}.txt")
+    variant_out_name = variant.replace("/", "_")
+    p = directory.joinpath(f"{variant_out_name}.txt")
     data.to_csv(p, sep=delimiter)
 
 
