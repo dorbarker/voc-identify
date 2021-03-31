@@ -234,13 +234,11 @@ def one_index_results(
     mutation_results: Dict[str, MutationResults]
 ) -> Dict[str, MutationResults]:
 
-    oir = {
-        voc_name: {
-            read: [i + 1 for i in positions] for read, positions in voc_results.items()
-        }
-        for voc_name, voc_results in mutation_results.items()
-    }
-
+    oir = (
+        pd.DataFrame(mutation_results)
+        .applymap(lambda cell: [[pos + 1 for pos in group] for group in cell])
+        .to_dict()
+    )
     return oir
 
 
