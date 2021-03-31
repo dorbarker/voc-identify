@@ -3,14 +3,15 @@ import itertools
 import pysam
 from collections import Counter
 import pandas as pd
+import numpy as np
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from . import __version__
 
 complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
 
-Mutations = Dict[int, str]
+Mutations = Dict[Tuple[int], Tuple[str]]
 VoCs = Dict[str, Mutations]
 Reads = List[pysam.AlignedSegment]
 MutationResults = Dict[str, List[int]]
@@ -81,8 +82,8 @@ def load_mutations(mutations_path: Path, delimiter: str) -> VoCs:
             continue
 
         voc = row["PangoLineage"]
-        position = int(row["Position"]) - 1
-        mutant = row["Alt"]
+        position = (int(row["Position"]) - 1,)
+        mutant = (row["Alt"],)
 
         if voc not in vocs:
             vocs[voc] = {}
@@ -138,9 +139,7 @@ def find_variant_mutations_nanopore(
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = [
-            s for q, s in pairs if is_mutant(q, s, seq, False, mutations)
-        ]
+        results[read_name] = find_mutation_positions(seq, pairs, False, mutations)
 
     return results
 
@@ -161,35 +160,74 @@ def find_variant_mutations_illumina(
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = [
-            s for q, s in pairs if is_mutant(q, s, seq, revcomp, mutations)
-        ]
+        results[read_name] = find_mutation_positions(seq, pairs, revcomp, mutations)
 
     return results
 
 
-def is_mutant(
-    read_position: int,
-    reference_position: int,
-    read_sequence: str,
-    revcomp: bool,
-    mutations: Mutations,
-) -> bool:
+def pad_seq_with_ambiguous(seq, query_positions):
 
-    if reference_position in mutations:
+    new_seq = np.zeros(len(query_positions), dtype=str)
 
-        if revcomp:
-            read_sequence = "".join([complements[nt] for nt in reversed(read_sequence)])
-
+    for seq_element, query_position in zip(range(len(new_seq)), query_positions):
         try:
+            nt = seq[query_position]
+        except TypeError:  # None in the query positions
+            nt = "N"
+        new_seq[seq_element] = nt
 
-            read_nt = read_sequence[read_position]
-            mut_nt = mutations[reference_position]
+    return new_seq
 
-            return read_nt == mut_nt
 
-        except TypeError:
-            return False
+def find_mutation_positions(seq, pairs, revcomp, mutations):
+
+    mutated_regions = []
+
+    original_orientation = True
+
+    query_positions, subject_positions = zip(*pairs)
+
+    aln = (
+        pd.DataFrame(
+            {
+                "seq": pad_seq_with_ambiguous(seq, query_positions),
+                "query_positions": query_positions,
+                "subject_positions": subject_positions,
+            }
+        )
+        .dropna()
+        .astype({"query_positions": int})
+    )
+
+    for mutation_positions, mutation_seq in mutations.items():
+
+        has_mutation = aln["subject_positions"].isin(mutation_positions)
+
+        # has all of the mutations in the current group
+        relevant = has_mutation.sum() == len(mutation_positions)
+
+        if not relevant:
+            continue
+
+        # punt the reverse complementation of the sequence down here,
+        # it's relatively costly do on tens of thousands of reads
+        # if you don't need to
+
+        # so we don't keep flipping orientations if multiple mutations hit the read
+        if revcomp and original_orientation:
+            aln["seq"] = [[complements[nt] for nt in reversed(aln["seq"])]]
+            original_orientation = False
+
+        current_seq = aln.loc[has_mutation, "seq"]
+
+        is_mutated = current_seq.equals(
+            pd.Series(mutation_seq, index=current_seq.index)
+        )
+
+        if is_mutated:
+            mutated_regions.append(mutation_positions)
+
+    return mutated_regions
 
 
 def one_index_results(
