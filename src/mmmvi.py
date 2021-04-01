@@ -3,14 +3,13 @@ import itertools
 import pysam
 from collections import Counter
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple
 import re
 
 from . import __version__
 
-complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N"}
+complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N", None: None}
 
 Mutations = Dict[Tuple[int], Tuple[str]]
 VoCs = Dict[str, Mutations]
@@ -48,7 +47,7 @@ def main():
 
     args = arguments()
 
-    vocs = load_mutations(args.mutations, args.delimiter)
+    vocs = load_mutations(args.mutations, args.reference, args.delimiter)
 
     reads = load_reads(args.bam, args.reference)
 
@@ -70,49 +69,62 @@ def is_illumina(reads: Reads) -> bool:
     return (counts[2] / counts[1]) >= 10
 
 
+def load_reference(reference: Path) -> str:
+    # reference needs to be complete and in a single contig anyway
+    #
+    # written to avoid having to pull in all of biopython
+
+    lines = []
+    with reference.open("r") as f:
+        for line in f:
+            if not line.startswith(">"):
+                lines.append(line)
+
+    seq = "".join(lines)
+
+    return seq
+
+
 def parse_mutation(s):
 
     if s.endswith("del"):
         _, start, stop, _ = re.split("[\[\-\]]", s)
         position_range = tuple(range(int(start) - 1, int(stop)))
         mutation = tuple(None for _ in position_range)
-        wt = None
+        wt = (None,)
 
     else:
-        wt, mutation = re.findall("[ATCG]+", s)
+        wt, mutation = (tuple(x) for x in re.findall("[ATCG]+", s))
+
         start = int(re.search("\d+", s).group()) - 1
         position_range = tuple(range(start, start + len(wt)))
 
     return position_range, wt, mutation
 
 
-def load_mutations(mutations_path: Path, delimiter: str) -> VoCs:
+def load_mutations(mutations_path: Path, reference_path: Path, delimiter: str) -> VoCs:
 
     data = pd.read_csv(mutations_path, sep=delimiter)
+
+    reference_seq = load_reference(reference_path)
 
     vocs = {"reference": {}}
 
     for idx, row in data.iterrows():
 
-        # Currently only single-base substitutions are supported
-        if row["Type"] == "Del":
-            continue
-
         voc = row["PangoLineage"]
-        position = int(row["Position"]) - 1
-        position_range = tuple(range(position, position + int(row["Length"])))
 
-        if row["Type"] == "Del":
-            mutant = tuple(None for _ in position_range)
-        else:
-            mutant = tuple(row["Alt"])
+        position_range, wt, mutant = parse_mutation(row["NucName"])
 
         if voc not in vocs:
             vocs[voc] = {}
 
         vocs[voc][position_range] = mutant
 
-        vocs["reference"][position_range] = tuple(row["Ref"])
+        if wt == (None,):
+            wt = tuple(reference_seq[position] for position in position_range)
+
+        vocs["reference"][position_range] = wt
 
     return vocs
 
@@ -189,13 +201,13 @@ def find_variant_mutations_illumina(
 
 def pad_seq_with_ambiguous(seq, query_positions):
 
-    new_seq = np.zeros(len(query_positions), dtype=str)
+    new_seq = [None for _ in query_positions]
 
     for seq_element, query_position in zip(range(len(new_seq)), query_positions):
         try:
             nt = seq[query_position]
         except TypeError:  # None in the query positions
-            nt = "N"
+            continue
         new_seq[seq_element] = nt
 
     return new_seq
@@ -209,16 +221,11 @@ def find_mutation_positions(seq, pairs, revcomp, mutations):
 
     query_positions, subject_positions = zip(*pairs)
 
-    aln = (
-        pd.DataFrame(
-            {
-                "seq": pad_seq_with_ambiguous(seq, query_positions),
-                "query_positions": query_positions,
-                "subject_positions": subject_positions,
-            }
-        )
-        .dropna()
-        .astype({"query_positions": int})
+    aln = pd.DataFrame(
+        {
+            "seq": pad_seq_with_ambiguous(seq, query_positions),
+            "subject_positions": subject_positions,
+        }
     )
 
     for mutation_positions, mutation_seq in mutations.items():
@@ -283,14 +290,25 @@ def format_summary(mutation_results):
 
 
 def format_mutation_string(position_range, mutations, wt):
-    # This only handles substitutions right now, but will be modified to handle deletions
 
     start = min(position_range)
+    stop = max(position_range)
 
-    wildtype_nt = "".join(wt[position_range])
-    variant_nt = "".join(mutations[position_range])
+    if mutations[position_range][0] == None:
 
-    return f"{wildtype_nt}{start + 1}{variant_nt}"
+        if start == stop:
+            s = f"[{start}]del"
+        else:
+            s = f"[{start}-{stop}]del"
+
+    else:
+
+        wildtype_nt = "".join(wt[position_range])
+        variant_nt = "".join(mutations[position_range])
+
+        s = f"{wildtype_nt}{start + 1}{variant_nt}"
+
+    return s
 
 
 def format_cooccurence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
