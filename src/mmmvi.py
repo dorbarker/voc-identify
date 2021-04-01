@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple
+import re
 
 from . import __version__
 
@@ -69,6 +70,22 @@ def is_illumina(reads: Reads) -> bool:
     return (counts[2] / counts[1]) >= 10
 
 
+def parse_mutation(s):
+
+    if s.endswith("del"):
+        _, start, stop, _ = re.split("[\[\-\]]", s)
+        position_range = tuple(range(int(start) - 1, int(stop)))
+        mutation = tuple(None for _ in position_range)
+        wt = None
+
+    else:
+        wt, mutation = re.findall("[ATCG]+", s)
+        start = int(re.search("\d+", s).group()) - 1
+        position_range = tuple(range(start, start + len(wt)))
+
+    return position_range, wt, mutation
+
+
 def load_mutations(mutations_path: Path, delimiter: str) -> VoCs:
 
     data = pd.read_csv(mutations_path, sep=delimiter)
@@ -83,8 +100,12 @@ def load_mutations(mutations_path: Path, delimiter: str) -> VoCs:
 
         voc = row["PangoLineage"]
         position = int(row["Position"]) - 1
-        position_range = tuple(range(position, position + len(row["Alt"])))
-        mutant = tuple(row["Alt"])
+        position_range = tuple(range(position, position + int(row["Length"])))
+
+        if row["Type"] == "Del":
+            mutant = tuple(None for _ in position_range)
+        else:
+            mutant = tuple(row["Alt"])
 
         if voc not in vocs:
             vocs[voc] = {}
