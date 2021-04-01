@@ -78,19 +78,20 @@ def load_mutations(mutations_path: Path, delimiter: str) -> VoCs:
     for idx, row in data.iterrows():
 
         # Currently only single-base substitutions are supported
-        if row["Type"] == "Del" or len(row["Alt"]) > 1:
+        if row["Type"] == "Del":
             continue
 
         voc = row["PangoLineage"]
-        position = (int(row["Position"]) - 1,)
-        mutant = (row["Alt"],)
+        position = int(row["Position"]) - 1
+        position_range = tuple(range(position, position + len(row["Alt"])))
+        mutant = tuple(row["Alt"])
 
         if voc not in vocs:
             vocs[voc] = {}
 
-        vocs[voc][position] = mutant
+        vocs[voc][position_range] = mutant
 
-        vocs["reference"][position] = row["Ref"]
+        vocs["reference"][position_range] = tuple(row["Ref"])
 
     return vocs
 
@@ -265,8 +266,8 @@ def format_mutation_string(position_range, mutations, wt):
 
     start = min(position_range)
 
-    wildtype_nt = wt[position_range]
-    variant_nt = mutations[position_range]
+    wildtype_nt = "".join(wt[position_range])
+    variant_nt = "".join(mutations[position_range])
 
     return f"{wildtype_nt}{start + 1}{variant_nt}"
 
