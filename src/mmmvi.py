@@ -260,10 +260,24 @@ def format_summary(mutation_results):
     return pd.DataFrame(count_of_reads_with_N_snps.to_dict()).transpose()
 
 
+def format_mutation_string(position_range, mutations, wt):
+    # This only handles substitutions right now, but will be modified to handle deletions
+
+    start = min(position_range)
+
+    wildtype_nt = wt[position_range]
+    variant_nt = mutations[position_range]
+
+    return f"{wildtype_nt}{start + 1}{variant_nt}"
+
+
 def format_cooccurence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
     # For one VoC at a time
 
-    lookup = {pos: f"{wt[pos]}{pos+1}{mutations[pos]}" for pos in mutations.keys()}
+    lookup = {
+        position_range: format_mutation_string(position_range, mutations, wt)
+        for position_range in mutations.keys()
+    }
 
     mx = pd.DataFrame(data=0, index=lookup.values(), columns=lookup.values())
 
@@ -347,14 +361,15 @@ def format_read_species(
 
         for variant, positions in zip(read_report.columns, variant_positions):
 
-            for position in positions:
+            for position_range in positions:
 
                 matching_variant[variant] += 1
 
                 # convert between 1-based read_report and 0-based vocs
-                voc_pos = position - 1
+                voc_pos = tuple(position - 1 for position in position_range)
 
-                position_nt = (position, vocs[variant][voc_pos])
+                position_nt = (tuple(position_range), vocs[variant][voc_pos])
+
                 position_nts.add(position_nt)
 
         if not position_nts:  # reads matching no VoCs
