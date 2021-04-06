@@ -244,7 +244,7 @@ def find_mutation_positions(seq, pairs, revcomp, mutations):
 
         # so we don't keep flipping orientations if multiple mutations hit the read
         if revcomp and original_orientation:
-            aln["seq"] = [[complements[nt] for nt in reversed(aln["seq"])]]
+            aln["seq"] = [complements[nt] for nt in reversed(aln["seq"])]
             original_orientation = False
 
         current_seq = aln.loc[has_mutation, "seq"]
