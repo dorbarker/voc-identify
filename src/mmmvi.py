@@ -53,7 +53,7 @@ def main():
 
     mutation_results = find_mutations(reads, vocs)
 
-    reports = format_reports(mutation_results, vocs)
+    reports = format_reports(reads, mutation_results, vocs)
 
     write_reports(reports, args.outdir, args.delimiter)
 
@@ -386,7 +386,10 @@ def format_cooccurence_matrices(mutation_results, vocs):
 
 
 def format_read_species(
-    mutation_results: MutationResults, read_report: pd.DataFrame, vocs: VoCs
+    reads: Reads,
+    mutation_results: MutationResults,
+    read_report: pd.DataFrame,
+    vocs: VoCs,
 ) -> pd.DataFrame:
 
     species = {}
@@ -424,6 +427,11 @@ def format_read_species(
         except KeyError:
 
             locations, nucleotides = zip(*pairs)
+
+            # a temporary fix to a weird regression introduced by multibase subs/dels
+            locations = tuple(itertools.chain.from_iterable(locations))
+            nucleotides = tuple(itertools.chain.from_iterable(nucleotides))
+
             species[key] = {
                 "positions": locations,
                 "nucleotides": nucleotides,
@@ -433,12 +441,42 @@ def format_read_species(
 
     read_species = pd.DataFrame.from_dict(species, orient="index")
 
-    read_species["proportion"] = read_species["count"] / total_reads
+    read_species["proportion_total"] = read_species["count"] / total_reads
+
+    overlapping_counts = read_species_overlap(read_species, reads)
+
+    read_species["reads_overlapping"] = [
+        overlapping_counts[positions] for positions in read_species["positions"]
+    ]
+
+    read_species["proportion_overlapping"] = (
+        read_species["count"] / read_species["reads_overlapping"]
+    )
 
     return read_species
 
 
-def format_reports(mutation_results, vocs):
+def read_species_overlap(
+    read_species: pd.DataFrame, reads: Reads
+) -> Dict[Tuple[int, ...], int]:
+
+    overlapping_counts = {species: 0 for species in read_species["positions"]}
+
+    for read in reads:
+
+        ref_positions = set(read.get_reference_positions())
+        # print("-" * 10)
+        # print(ref_positions)
+        for species_positions in overlapping_counts:
+            # print(species_positions)
+            is_overlapping = all(p in ref_positions for p in species_positions)
+
+            overlapping_counts[species_positions] += is_overlapping
+
+    return overlapping_counts
+
+
+def format_reports(reads: Reads, mutation_results, vocs):
 
     oir_results = one_index_results(mutation_results)
 
@@ -450,7 +488,7 @@ def format_reports(mutation_results, vocs):
         ),
     }
     reports["read_species"] = format_read_species(
-        mutation_results, reports["read_report"], vocs
+        reads, mutation_results, reports["read_report"], vocs
     )
 
     reports["relative_cooccurence_matrices"] = format_relative_coocurence_matrices(
