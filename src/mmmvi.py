@@ -3,6 +3,7 @@ import itertools
 import pysam
 from collections import Counter
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple
 import re
@@ -221,38 +222,33 @@ def find_mutation_positions(seq, pairs, revcomp, mutations):
 
     query_positions, subject_positions = zip(*pairs)
 
-    aln = pd.DataFrame(
-        {
-            "seq": pad_seq_with_ambiguous(seq, query_positions),
-            "subject_positions": subject_positions,
-        }
+    aln = pd.Series(
+        pad_seq_with_ambiguous(seq, query_positions), index=subject_positions
     )
 
     for mutation_positions, mutation_seq in mutations.items():
 
-        has_mutation = aln["subject_positions"].isin(mutation_positions)
-
         # has all of the mutations in the current group
-        relevant = has_mutation.sum() == len(mutation_positions)
+        relevant = all(p in aln for p in mutation_positions)
 
         if not relevant:
             continue
 
-        # punt the reverse complementation of the sequence down here,
-        # it's relatively costly do on tens of thousands of reads
-        # if you don't need to
+        has_mutation = aln.loc[list(mutation_positions)]
 
-        # so we don't keep flipping orientations if multiple mutations hit the read
-        if revcomp and original_orientation:
-            aln["seq"] = [complements[nt] for nt in reversed(aln["seq"])]
-            original_orientation = False
+        # TODO: probably able to drop this; need to double-check
+        if revcomp:  # and original_orientation:
 
-        current_seq = aln.loc[has_mutation, "seq"]
+            has_mutation = pd.Series(
+                [complements[nt] for nt in reversed(has_mutation.values)],
+                index=has_mutation.index,
+            )
+            # original_orientation = False
 
-        is_mutated = current_seq.equals(
-            pd.Series(mutation_seq, index=current_seq.index)
+        # is_mutated = np.equal(has_mutation, mutation_seq).all()
+        is_mutated = has_mutation.equals(
+            pd.Series(mutation_seq, index=has_mutation.index)
         )
-
         if is_mutated:
             mutated_regions.append(mutation_positions)
 
