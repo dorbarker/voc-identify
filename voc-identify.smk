@@ -23,6 +23,6 @@ rule find_vocs:
 	shell:
 		"mmmvi "
 		"--bam {input[0]} "
-		"--reference data/nCoV-2018.fasta "
+		"--reference data/reference.fasta "
 		"--mutations data/mutations.tsv "
 		"--outdir reports/{wildcards.sample}/ "
