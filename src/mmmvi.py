@@ -86,19 +86,47 @@ def load_reference(reference: Path) -> str:
     return seq
 
 
-def parse_mutation(s):
+def parse_mutation(s: str):
 
     if s.endswith("del"):
-        _, start, stop, _ = re.split("[\[\-\]]", s)
-        position_range = tuple(range(int(start) - 1, int(stop)))
-        mutation = tuple(None for _ in position_range)
-        wt = (None,)
+
+        position_range, wt, mutation = parse_deletion(s)
 
     else:
-        wt, mutation = (tuple(x) for x in re.findall("[ATCG]+", s))
 
-        start = int(re.search("\d+", s).group()) - 1
-        position_range = tuple(range(start, start + len(wt)))
+        position_range, wt, mutation = parse_substitution(s)
+
+    return position_range, wt, mutation
+
+
+def parse_deletion(s: str):
+
+    _, *start_stop, _ = re.split("[\[\-\]]", s)
+
+    try:
+        start, stop = start_stop
+    except ValueError:
+        start = stop = start_stop[0]
+
+    if stop < start:
+        raise ValueError(f"stop is less than start in {s}")
+
+    start = int(start)
+    stop = int(stop)
+
+    position_range = tuple(range(start - 1, stop))
+    mutation = tuple(None for _ in position_range)
+    wt = (None,)
+
+    return position_range, wt, mutation
+
+
+def parse_substitution(s: str):
+
+    wt, mutation = (tuple(x) for x in re.findall("[ATCG]+", s))
+
+    start = int(re.search("\d+", s).group()) - 1
+    position_range = tuple(range(start, start + len(wt)))
 
     return position_range, wt, mutation
 
