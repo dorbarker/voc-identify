@@ -22,13 +22,13 @@ def arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--bam", required=True, type=Path)
+    parser.add_argument("--bam", required=True, type=Path, metavar="BAM")
 
-    parser.add_argument("--reference", required=True, type=Path)
+    parser.add_argument("--reference", required=True, type=Path, metavar="FASTA")
 
-    parser.add_argument("--mutations", required=True, type=Path)
+    parser.add_argument("--mutations", required=True, type=Path, metavar="TABULAR")
 
-    parser.add_argument("--outdir", required=True, type=Path)
+    parser.add_argument("--outdir", required=True, type=Path, metavar="DIR")
 
     parser.add_argument(
         "--voc-column",
@@ -48,6 +48,7 @@ def arguments():
         "-d",
         "--delimiter",
         default="\t",
+        metavar="CHAR",
         help="Delimiter character for tabular input and output [TAB]",
     )
 
