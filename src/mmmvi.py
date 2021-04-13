@@ -22,13 +22,37 @@ def arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--bam", required=True, type=Path, metavar="BAM")
+    parser.add_argument(
+        "--bam",
+        required=True,
+        type=Path,
+        metavar="BAM",
+        help="Path to a BAM file aligned against the reference",
+    )
 
-    parser.add_argument("--reference", required=True, type=Path, metavar="FASTA")
+    parser.add_argument(
+        "--reference",
+        required=True,
+        type=Path,
+        metavar="FASTA",
+        help="Path to FASTA-formatted complete reference genome",
+    )
 
-    parser.add_argument("--mutations", required=True, type=Path, metavar="TABULAR")
+    parser.add_argument(
+        "--mutations",
+        required=True,
+        type=Path,
+        metavar="TABULAR",
+        help="Path to tabular file describing Variants of Concern",
+    )
 
-    parser.add_argument("--outdir", required=True, type=Path, metavar="DIR")
+    parser.add_argument(
+        "--outdir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Output directory; will be created if it does not already exist",
+    )
 
     parser.add_argument(
         "--voc-column",
