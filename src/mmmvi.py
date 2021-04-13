@@ -477,14 +477,11 @@ def format_read_species(
 
             # a temporary fix to a weird regression introduced by multibase subs/dels
             locations = tuple(itertools.chain.from_iterable(locations))
-            nucleotides = tuple(
-                "del" if nt is None else nt
-                for nt in itertools.chain.from_iterable(nucleotides)
-            )
+            nucleotides = tuple(itertools.chain.from_iterable(nucleotides))
 
             species[key] = {
                 "positions": locations,
-                "nucleotides": nucleotides,
+                "nucleotides": tuple("del" if nt is None else nt for nt in nucleotides),
                 "count": 1,
             }
             species[key].update(matching_variant)
