@@ -31,6 +31,20 @@ def arguments():
     parser.add_argument("--outdir", required=True, type=Path)
 
     parser.add_argument(
+        "--voc-column",
+        default="PangoLineage",
+        metavar="COLUMN",
+        help="Header for the column containing Variant of Concern names [PangoLineage]",
+    )
+
+    parser.add_argument(
+        "--mutation-column",
+        default="NucName",
+        metavar="COLUMN",
+        help="Header for the column containing mutation descriptions [NucName]",
+    )
+
+    parser.add_argument(
         "-d",
         "--delimiter",
         default="\t",
@@ -48,7 +62,13 @@ def main():
 
     args = arguments()
 
-    vocs = load_mutations(args.mutations, args.reference, args.delimiter)
+    vocs = load_mutations(
+        args.mutations,
+        args.reference,
+        args.voc_column,
+        args.mutation_column,
+        args.delimiter,
+    )
 
     reads = load_reads(args.bam, args.reference)
 
@@ -103,7 +123,13 @@ def parse_mutation(s):
     return position_range, wt, mutation
 
 
-def load_mutations(mutations_path: Path, reference_path: Path, delimiter: str) -> VoCs:
+def load_mutations(
+    mutations_path: Path,
+    reference_path: Path,
+    voc_col: str,
+    mut_col: str,
+    delimiter: str,
+) -> VoCs:
 
     data = pd.read_csv(mutations_path, sep=delimiter)
 
@@ -113,9 +139,9 @@ def load_mutations(mutations_path: Path, reference_path: Path, delimiter: str) -
 
     for idx, row in data.iterrows():
 
-        voc = row["PangoLineage"]
+        voc = row[voc_col]
 
-        position_range, wt, mutant = parse_mutation(row["NucName"])
+        position_range, wt, mutant = parse_mutation(row[mut_col])
 
         if voc not in vocs:
             vocs[voc] = {}
