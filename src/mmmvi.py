@@ -447,13 +447,9 @@ def format_read_species(
 
         position_nts = set()
 
-        matching_variant = {v: 0 for v in vocs}
-
         for variant, positions in zip(read_report.columns, variant_positions):
 
             for position_range in positions:
-
-                matching_variant[variant] += 1
 
                 # convert between 1-based read_report and 0-based vocs
                 voc_pos = tuple(position - 1 for position in position_range)
@@ -482,9 +478,11 @@ def format_read_species(
             species[key] = {
                 "positions": locations,
                 "nucleotides": tuple("del" if nt is None else nt for nt in nucleotides),
-                "count": 1,
+                "count": 1,  # the number of times this combination of mutations has been observed
             }
-            species[key].update(matching_variant)
+
+            # add the bitarrays
+            species[key].update(make_voc_bitarray(locations, nucleotides, vocs))
 
     read_species = pd.DataFrame.from_dict(species, orient="index")
 
@@ -501,6 +499,41 @@ def format_read_species(
     )
 
     return read_species
+
+
+def make_voc_bitarray(
+    locations: Tuple[int, ...], nucleotides: Tuple[str, ...], vocs
+) -> Dict[str, Tuple[int, ...]]:
+
+    # locations is 1-indexed
+    voc_bitarrays = {}
+
+    locs = tuple(p - 1 for p in locations)  # back to 0-index
+
+    for variant in vocs:
+
+        bitarray = []
+
+        # flatten the mutations to be able to get reads with multiple mutations
+        voc_positions, voc_nts = [
+            tuple(itertools.chain.from_iterable(x)) for x in zip(*vocs[variant].items())
+        ]
+
+        for loc, nt in zip(locs, nucleotides):
+
+            try:
+
+                idx = voc_positions.index(loc)
+                match = int(voc_nts[idx] == nt)
+
+            except ValueError:
+                match = 0
+
+            bitarray.append(match)
+
+        voc_bitarrays[variant] = tuple(bitarray)
+
+    return voc_bitarrays
 
 
 def read_species_overlap(
