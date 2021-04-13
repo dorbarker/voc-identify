@@ -22,18 +22,57 @@ def arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--bam", required=True, type=Path)
+    parser.add_argument(
+        "--bam",
+        required=True,
+        type=Path,
+        metavar="BAM",
+        help="Path to a BAM file aligned against the reference",
+    )
 
-    parser.add_argument("--reference", required=True, type=Path)
+    parser.add_argument(
+        "--reference",
+        required=True,
+        type=Path,
+        metavar="FASTA",
+        help="Path to FASTA-formatted complete reference genome",
+    )
 
-    parser.add_argument("--mutations", required=True, type=Path)
+    parser.add_argument(
+        "--mutations",
+        required=True,
+        type=Path,
+        metavar="TABULAR",
+        help="Path to tabular file describing Variants of Concern",
+    )
 
-    parser.add_argument("--outdir", required=True, type=Path)
+    parser.add_argument(
+        "--outdir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Output directory; will be created if it does not already exist",
+    )
+
+    parser.add_argument(
+        "--voc-column",
+        default="PangoLineage",
+        metavar="COLUMN",
+        help="Header for the column containing Variant of Concern names [PangoLineage]",
+    )
+
+    parser.add_argument(
+        "--mutation-column",
+        default="NucName",
+        metavar="COLUMN",
+        help="Header for the column containing mutation descriptions [NucName]",
+    )
 
     parser.add_argument(
         "-d",
         "--delimiter",
         default="\t",
+        metavar="CHAR",
         help="Delimiter character for tabular input and output [TAB]",
     )
 
@@ -48,7 +87,13 @@ def main():
 
     args = arguments()
 
-    vocs = load_mutations(args.mutations, args.reference, args.delimiter)
+    vocs = load_mutations(
+        args.mutations,
+        args.reference,
+        args.voc_column,
+        args.mutation_column,
+        args.delimiter,
+    )
 
     reads = load_reads(args.bam, args.reference)
 
@@ -103,7 +148,13 @@ def parse_mutation(s):
     return position_range, wt, mutation
 
 
-def load_mutations(mutations_path: Path, reference_path: Path, delimiter: str) -> VoCs:
+def load_mutations(
+    mutations_path: Path,
+    reference_path: Path,
+    voc_col: str,
+    mut_col: str,
+    delimiter: str,
+) -> VoCs:
 
     data = pd.read_csv(mutations_path, sep=delimiter)
 
@@ -113,9 +164,9 @@ def load_mutations(mutations_path: Path, reference_path: Path, delimiter: str) -
 
     for idx, row in data.iterrows():
 
-        voc = row["PangoLineage"]
+        voc = row[voc_col]
 
-        position_range, wt, mutant = parse_mutation(row["NucName"])
+        position_range, wt, mutant = parse_mutation(row[mut_col])
 
         if voc not in vocs:
             vocs[voc] = {}
@@ -426,7 +477,7 @@ def format_read_species(
 
             species[key] = {
                 "positions": locations,
-                "nucleotides": nucleotides,
+                "nucleotides": tuple("del" if nt is None else nt for nt in nucleotides),
                 "count": 1,  # the number of times this combination of mutations has been observed
             }
 
