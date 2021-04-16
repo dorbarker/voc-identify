@@ -78,6 +78,14 @@ def arguments():
     )
 
     parser.add_argument(
+        "--only-vocs",
+        nargs="*",
+        metavar="VOC",
+        default=[],
+        help="Look only for these variants, plus the reference",
+    )
+
+    parser.add_argument(
         "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
     )
 
@@ -93,6 +101,7 @@ def main():
         args.voc_column,
         args.mutation_column,
         args.delimiter,
+        args.only_vocs,
     )
 
     reads = load_reads(args.bam, args.reference)
@@ -182,6 +191,7 @@ def load_mutations(
     voc_col: str,
     mut_col: str,
     delimiter: str,
+    selected_vocs: List[str],
 ) -> VoCs:
     data = pd.read_csv(mutations_path, sep=delimiter)
 
@@ -192,6 +202,9 @@ def load_mutations(
     for idx, row in data.iterrows():
 
         voc = row[voc_col]
+
+        if selected_vocs and voc not in selected_vocs:
+            continue
 
         position_range, wt, mutant = parse_mutation(row[mut_col])
 
