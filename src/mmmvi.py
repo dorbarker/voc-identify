@@ -202,7 +202,7 @@ def find_variant_mutations_nanopore(
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = find_mutation_positions(seq, pairs, False, mutations)
+        results[read_name] = find_mutation_positions(seq, pairs, mutations)
 
     return results
 
@@ -215,15 +215,14 @@ def find_variant_mutations_illumina(
 
     for read in reads:
 
-        revcomp = read.is_reverse
-        orientation_tag = "rev" if revcomp else "fwd"
+        orientation_tag = "rev" if read.is_reverse else "fwd"
         read_name = f"{read.query_name}:{orientation_tag}"
 
-        seq = read.get_forward_sequence()
+        seq = read.query_sequence
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = find_mutation_positions(seq, pairs, revcomp, mutations)
+        results[read_name] = find_mutation_positions(seq, pairs, mutations)
 
     return results
 
@@ -242,13 +241,11 @@ def pad_seq_with_ambiguous(seq, query_positions):
     return new_seq
 
 
-def find_mutation_positions(seq, pairs, revcomp, mutations):
+def find_mutation_positions(seq, pairs, mutations):
 
     mutated_regions = []
 
-    original_orientation = True
-
-    query_positions, subject_positions = zip(*pairs)
+    query_positions, subject_positions = zip(*filter(lambda x: x[1], pairs))
 
     aln = pd.Series(
         pad_seq_with_ambiguous(seq, query_positions), index=subject_positions
@@ -264,16 +261,6 @@ def find_mutation_positions(seq, pairs, revcomp, mutations):
 
         has_mutation = aln.loc[list(mutation_positions)]
 
-        # TODO: probably able to drop this; need to double-check
-        if revcomp:  # and original_orientation:
-
-            has_mutation = pd.Series(
-                [complements[nt] for nt in reversed(has_mutation.values)],
-                index=has_mutation.index,
-            )
-            # original_orientation = False
-
-        # is_mutated = np.equal(has_mutation, mutation_seq).all()
         is_mutated = has_mutation.equals(
             pd.Series(mutation_seq, index=has_mutation.index)
         )
@@ -489,10 +476,9 @@ def read_species_overlap(
     for read in reads:
 
         ref_positions = set(read.get_reference_positions())
-        # print("-" * 10)
-        # print(ref_positions)
+
         for species_positions in overlapping_counts:
-            # print(species_positions)
+
             is_overlapping = all(p in ref_positions for p in species_positions)
 
             overlapping_counts[species_positions] += is_overlapping
