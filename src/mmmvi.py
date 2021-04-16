@@ -131,7 +131,6 @@ def load_reference(reference: Path) -> str:
     return seq
 
 
-
 def parse_mutation(s: str):
 
     if s.endswith("del"):
@@ -147,7 +146,7 @@ def parse_mutation(s: str):
 
 def parse_deletion(s: str):
 
-    _, *start_stop, _ = re.split("[\[\-\]]", s)
+    _, *start_stop, _ = re.split(r"[\[\-\]]", s)
 
     try:
         start, stop = start_stop
@@ -169,9 +168,9 @@ def parse_deletion(s: str):
 
 def parse_substitution(s: str):
 
-    wt, mutation = (tuple(x) for x in re.findall("[ATCG]+", s))
+    wt, mutation = (tuple(x) for x in re.findall(r"[ATCG]+", s))
 
-    start = int(re.search("\d+", s).group()) - 1
+    start = int(re.search(r"\d+", s).group()) - 1
     position_range = tuple(range(start, start + len(wt)))
 
     return position_range, wt, mutation
