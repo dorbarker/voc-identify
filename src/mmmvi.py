@@ -131,18 +131,48 @@ def load_reference(reference: Path) -> str:
     return seq
 
 
-def parse_mutation(s: str) -> Tuple[Position, Mutation, Mutation]:
+
+def parse_mutation(s: str):
+
     if s.endswith("del"):
-        _, start, stop, _ = re.split(r"[\[\-\]]", s)
-        position_range = tuple(range(int(start) - 1, int(stop)))
-        mutation = tuple(None for _ in position_range)
-        wt = (None,)
+
+        position_range, wt, mutation = parse_deletion(s)
 
     else:
-        wt, mutation = (tuple(x) for x in re.findall(r"[ATCG]+", s))
 
-        start = int(re.search(r"\d+", s).group()) - 1
-        position_range = tuple(range(start, start + len(wt)))
+        position_range, wt, mutation = parse_substitution(s)
+
+    return position_range, wt, mutation
+
+
+def parse_deletion(s: str):
+
+    _, *start_stop, _ = re.split("[\[\-\]]", s)
+
+    try:
+        start, stop = start_stop
+    except ValueError:
+        start = stop = start_stop[0]
+
+    if stop < start:
+        raise ValueError(f"stop is less than start in {s}")
+
+    start = int(start)
+    stop = int(stop)
+
+    position_range = tuple(range(start - 1, stop))
+    mutation = tuple(None for _ in position_range)
+    wt = (None,)
+
+    return position_range, wt, mutation
+
+
+def parse_substitution(s: str):
+
+    wt, mutation = (tuple(x) for x in re.findall("[ATCG]+", s))
+
+    start = int(re.search("\d+", s).group()) - 1
+    position_range = tuple(range(start, start + len(wt)))
 
     return position_range, wt, mutation
 
@@ -217,7 +247,7 @@ def find_variant_mutations_nanopore(
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = find_mutation_positions(seq, pairs, False, mutations)
+        results[read_name] = find_mutation_positions(seq, pairs, mutations)
 
     return results
 
@@ -228,15 +258,16 @@ def find_variant_mutations_illumina(
     results = {}
 
     for read in reads:
-        revcomp = read.is_reverse
-        orientation_tag = "rev" if revcomp else "fwd"
+
+        orientation_tag = "rev" if read.is_reverse else "fwd"
+
         read_name = f"{read.query_name}:{orientation_tag}"
 
-        seq = read.get_forward_sequence()
+        seq = read.query_sequence
 
         pairs = read.get_aligned_pairs()
 
-        results[read_name] = find_mutation_positions(seq, pairs, revcomp, mutations)
+        results[read_name] = find_mutation_positions(seq, pairs, mutations)
 
     return results
 
@@ -256,12 +287,11 @@ def pad_seq_with_ambiguous(
     return new_seq
 
 
-def find_mutation_positions(seq: str, pairs, revcomp, mutations) -> List[Position]:
+def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
+
     mutated_regions = []
 
-    original_orientation = True
-
-    query_positions, subject_positions = zip(*pairs)
+    query_positions, subject_positions = zip(*filter(lambda x: x[1], pairs))
 
     aln = pd.Series(
         pad_seq_with_ambiguous(seq, query_positions), index=subject_positions
@@ -277,16 +307,6 @@ def find_mutation_positions(seq: str, pairs, revcomp, mutations) -> List[Positio
 
         has_mutation = aln.loc[list(mutation_positions)]
 
-        # TODO: probably able to drop this; need to double-check
-        if revcomp:  # and original_orientation:
-
-            has_mutation = pd.Series(
-                [complements[nt] for nt in reversed(has_mutation.values)],
-                index=has_mutation.index,
-            )
-            # original_orientation = False
-
-        # is_mutated = np.equal(has_mutation, mutation_seq).all()
         is_mutated = has_mutation.equals(
             pd.Series(mutation_seq, index=has_mutation.index)
         )
