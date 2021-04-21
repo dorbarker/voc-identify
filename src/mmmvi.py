@@ -4,7 +4,7 @@ import pysam
 from collections import Counter
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 import re
 import string
 
@@ -583,12 +583,16 @@ def format_read_species(
 
 
 def make_voc_bitarray(
-    locations: Tuple[int, ...], nucleotides: Tuple[str, ...], vocs: VoCs
+    locations: Tuple[int, ...],
+    nucleotides: Tuple[Union[str, Tuple[str, ...]], ...],
+    vocs: VoCs,
 ) -> Dict[str, Tuple[int, ...]]:
     # locations is 1-indexed
     voc_bitarrays = {}
 
     locs = tuple(p - 1 for p in locations)  # back to 0-index
+
+    are_insertions = [isinstance(x, tuple) for x in nucleotides]
 
     for variant in vocs:
 
@@ -599,15 +603,20 @@ def make_voc_bitarray(
             tuple(itertools.chain.from_iterable(x)) for x in zip(*vocs[variant].items())
         ]
 
-        for loc, nt in zip(locs, nucleotides):
+        for loc, nt, insertion in zip(locs, nucleotides, are_insertions):
 
-            try:
+            if insertion:
 
-                idx = voc_positions.index(loc)
-                match = int(voc_nts[idx] == nt)
+                match = int(vocs[variant][(loc, None, loc + 1)] == nt)
 
-            except ValueError:
-                match = 0
+            else:
+                try:
+
+                    idx = voc_positions.index(loc)
+                    match = int(voc_nts[idx] == nt)
+
+                except ValueError:
+                    match = 0
 
             bitarray.append(match)
 
