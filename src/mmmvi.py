@@ -6,6 +6,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import re
+import string
 
 from . import __version__
 
@@ -146,14 +147,18 @@ def parse_mutation(s: str):
 
         position_range, wt, mutation = parse_deletion(s)
 
-    else:
+    elif s[0] in string.ascii_uppercase:
 
         position_range, wt, mutation = parse_substitution(s)
+
+    else:
+        position_range, wt, mutation = parse_insertion(s)
 
     return position_range, wt, mutation
 
 
 def parse_deletion(s: str):
+    # [123-125]del means that reference positions 123, 124, and 125 are deleted in the read
 
     _, *start_stop, _ = re.split(r"[\[\-\]]", s)
 
@@ -176,11 +181,27 @@ def parse_deletion(s: str):
 
 
 def parse_substitution(s: str):
+    # A123T means A in the reference has been substituted by T in read
+    # CAT123GTA means C, A, T at positions 123, 124, 125 have been substituted by G, T,  A
 
     wt, mutation = (tuple(x) for x in re.findall(r"[ATCG]+", s))
 
     start = int(re.search(r"\d+", s).group()) - 1
     position_range = tuple(range(start, start + len(wt)))
+
+    return position_range, wt, mutation
+
+
+def parse_insertion(s: str):
+    # 123CAT indicates CAT has been inserted betwixt reference positions 123 and 124
+
+    position = int("".join(itertools.takewhile(lambda x: x in string.digits, s)))
+
+    position_range = (position - 1, position)
+
+    mutation = tuple("".join(itertools.dropwhile(lambda x: x in string.digits, s)))
+
+    wt = tuple(None for _ in mutation)
 
     return position_range, wt, mutation
 
