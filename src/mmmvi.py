@@ -4,8 +4,9 @@ import pysam
 from collections import Counter
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 import re
+import string
 
 from . import __version__
 
@@ -146,14 +147,18 @@ def parse_mutation(s: str):
 
         position_range, wt, mutation = parse_deletion(s)
 
-    else:
+    elif s[0] in string.ascii_uppercase:
 
         position_range, wt, mutation = parse_substitution(s)
+
+    else:
+        position_range, wt, mutation = parse_insertion(s)
 
     return position_range, wt, mutation
 
 
 def parse_deletion(s: str):
+    # [123-125]del means that reference positions 123, 124, and 125 are deleted in the read
 
     _, *start_stop, _ = re.split(r"[\[\-\]]", s)
 
@@ -176,11 +181,28 @@ def parse_deletion(s: str):
 
 
 def parse_substitution(s: str):
+    # A123T means A in the reference has been substituted by T in read
+    # CAT123GTA means C, A, T at positions 123, 124, 125 have been substituted by G, T,  A
 
     wt, mutation = (tuple(x) for x in re.findall(r"[ATCG]+", s))
 
     start = int(re.search(r"\d+", s).group()) - 1
     position_range = tuple(range(start, start + len(wt)))
+
+    return position_range, wt, mutation
+
+
+def parse_insertion(s: str):
+    # 123CAT indicates CAT has been inserted betwixt reference positions 123 and 124
+
+    position = int("".join(itertools.takewhile(lambda x: x in string.digits, s)))
+
+    # Exactly 1 None will get the whole insertion by exploiting pd.Series indexing
+    position_range = (position - 1, None, position)
+
+    mutation = tuple("".join(itertools.dropwhile(lambda x: x in string.digits, s)))
+
+    wt = tuple(None for _ in mutation)
 
     return position_range, wt, mutation
 
@@ -299,11 +321,21 @@ def pad_seq_with_ambiguous(
     return new_seq
 
 
+def is_insertion(position_range: Tuple[Optional[int], ...]) -> bool:
+
+    try:
+        result = position_range[1] is None and isinstance(position_range[0], int)
+    except IndexError:
+        result = False
+
+    return result
+
+
 def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
 
     mutated_regions = []
 
-    query_positions, subject_positions = zip(*filter(lambda x: x[1], pairs))
+    query_positions, subject_positions = zip(*pairs)
 
     aln = pd.Series(
         pad_seq_with_ambiguous(seq, query_positions), index=subject_positions
@@ -317,7 +349,18 @@ def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
         if not relevant:
             continue
 
-        has_mutation = aln.loc[list(mutation_positions)]
+        if is_insertion(mutation_positions):
+            try:
+
+                has_mutation = aln.loc[mutation_positions[0] : mutation_positions[2]][
+                    None
+                ]
+
+            # This read spans the insertion locus, but doesn't actually have the insertion
+            except KeyError:
+                continue
+        else:
+            has_mutation = aln.loc[list(mutation_positions)]
 
         is_mutated = has_mutation.equals(
             pd.Series(mutation_seq, index=has_mutation.index)
@@ -328,10 +371,20 @@ def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
     return mutated_regions
 
 
+def one_index_range(position_range):
+
+    if None in position_range:
+        result = [position_range[0] + 1]
+    else:
+        result = [pos + 1 for pos in position_range]
+
+    return result
+
+
 def one_index_results(voc_results: VoCResults) -> VoCResults:
     oir = (
         pd.DataFrame(voc_results)
-        .applymap(lambda cell: [[pos + 1 for pos in group] for group in cell])
+        .applymap(lambda cell: [one_index_range(group) for group in cell])
         .to_dict()
     )
     return oir
@@ -354,9 +407,14 @@ def format_summary(voc_results: VoCResults) -> pd.DataFrame:
 
 
 def format_mutation_string(position_range: Position, mutations, wt):
-    start = min(position_range)
-    stop = max(position_range)
 
+    # filter the Nones in insertions
+    no_missing_range = [x for x in position_range if x]
+
+    start = min(no_missing_range)
+    stop = max(no_missing_range)
+
+    # deletions
     if mutations[position_range][0] is None:
 
         if start == stop:
@@ -364,6 +422,13 @@ def format_mutation_string(position_range: Position, mutations, wt):
         else:
             s = f"[{start}-{stop}]del"
 
+    # insertions
+    elif is_insertion(position_range):
+
+        insertion_nt = "".join(mutations[position_range])
+        s = f"{start + 1}{insertion_nt}"
+
+    # substitutions
     else:
 
         wildtype_nt = "".join(wt[position_range])
@@ -462,7 +527,15 @@ def format_read_species(
                 # convert between 1-based read_report and 0-based vocs
                 voc_pos = tuple(position - 1 for position in position_range)
 
-                position_nt = (tuple(position_range), vocs[variant][voc_pos])
+                try:
+                    voc_nt = vocs[variant][voc_pos]
+                except KeyError:
+                    voc_pos = (voc_pos[0], None, voc_pos[0] + 1)
+                    voc_nt = (vocs[variant][voc_pos],)
+
+                    position_range = (position_range[0],)
+
+                position_nt = (tuple(position_range), voc_nt)
 
                 position_nts.add(position_nt)
 
@@ -510,12 +583,16 @@ def format_read_species(
 
 
 def make_voc_bitarray(
-    locations: Tuple[int, ...], nucleotides: Tuple[str, ...], vocs: VoCs
+    locations: Tuple[int, ...],
+    nucleotides: Tuple[Union[str, Tuple[str, ...]], ...],
+    vocs: VoCs,
 ) -> Dict[str, Tuple[int, ...]]:
     # locations is 1-indexed
     voc_bitarrays = {}
 
     locs = tuple(p - 1 for p in locations)  # back to 0-index
+
+    are_insertions = [isinstance(x, tuple) for x in nucleotides]
 
     for variant in vocs:
 
@@ -526,15 +603,20 @@ def make_voc_bitarray(
             tuple(itertools.chain.from_iterable(x)) for x in zip(*vocs[variant].items())
         ]
 
-        for loc, nt in zip(locs, nucleotides):
+        for loc, nt, insertion in zip(locs, nucleotides, are_insertions):
 
-            try:
+            if insertion:
 
-                idx = voc_positions.index(loc)
-                match = int(voc_nts[idx] == nt)
+                match = int(vocs[variant][(loc, None, loc + 1)] == nt)
 
-            except ValueError:
-                match = 0
+            else:
+                try:
+
+                    idx = voc_positions.index(loc)
+                    match = int(voc_nts[idx] == nt)
+
+                except ValueError:
+                    match = 0
 
             bitarray.append(match)
 
