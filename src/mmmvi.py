@@ -352,19 +352,32 @@ def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
         if is_insertion(mutation_positions):
             try:
 
-                has_mutation = aln.loc[mutation_positions[0] : mutation_positions[2]][
-                    None
-                ]
+                start, _, stop = mutation_positions
+                has_mutation = aln.loc[start:stop][[None]]
 
             # This read spans the insertion locus, but doesn't actually have the insertion
             except KeyError:
+
+                # if the current 'VOC' is wild type
+                if all(x is None for x in mutation_seq):
+
+                    mutated_regions.append(mutation_positions)
+
                 continue
         else:
             has_mutation = aln.loc[list(mutation_positions)]
 
-        is_mutated = has_mutation.equals(
-            pd.Series(mutation_seq, index=has_mutation.index)
-        )
+        try:
+
+            is_mutated = has_mutation.equals(
+                pd.Series(mutation_seq, index=has_mutation.index)
+            )
+        except ValueError:
+
+            # spurious insertions, especially in Nanopore data
+            if len(has_mutation) != len(mutation_seq):
+                continue
+
         if is_mutated:
             mutated_regions.append(mutation_positions)
 
@@ -607,7 +620,10 @@ def make_voc_bitarray(
 
             if insertion:
 
-                match = int(vocs[variant][(loc, None, loc + 1)] == nt)
+                try:
+                    match = int(vocs[variant][(loc, None, loc + 1)] == nt)
+                except KeyError:
+                    match = 0
 
             else:
                 try:
