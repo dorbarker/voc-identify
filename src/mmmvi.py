@@ -134,7 +134,7 @@ def load_reference(reference: Path) -> str:
     with reference.open("r") as f:
         for line in f:
             if not line.startswith(">"):
-                lines.append(line)
+                lines.append(line.strip())
 
     seq = "".join(lines)
 
@@ -611,10 +611,22 @@ def make_voc_bitarray(
 
         bitarray = []
 
-        # flatten the mutations to be able to get reads with multiple mutations
-        voc_positions, voc_nts = [
-            tuple(itertools.chain.from_iterable(x)) for x in zip(*vocs[variant].items())
-        ]
+        voc_positions, voc_nts = [], []
+
+        for positions, mutations in vocs[variant].items():
+
+            if len(positions) == len(mutations):
+
+                for p, m in zip(positions, mutations):
+                    voc_positions.append(p)
+                    voc_nts.append(m)
+
+            # insertion handling; otherwise we get off-by N errors for the reference
+            # because a location is never None, this doesn't mess with .index() below
+            else:
+                for m in mutations:
+                    voc_positions.append(None)
+                    voc_nts.append(m)
 
         for loc, nt, insertion in zip(locs, nucleotides, are_insertions):
 
@@ -626,6 +638,7 @@ def make_voc_bitarray(
                     match = 0
 
             else:
+
                 try:
 
                     idx = voc_positions.index(loc)
