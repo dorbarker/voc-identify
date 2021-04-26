@@ -49,6 +49,27 @@ optional arguments:
   -v, --version         show program's version number and exit
 ```
 
+## The Mutations File
+
+The mutations file is a delimited file (tabs, by default) which describe which
+mutations belong to which variants of concern. The default headers are
+"PangoLineage" for VOC and "NucName" for the mutation description. However,
+these may be overridden by the user with `--voc-column` and `--mutation-column`,
+respectively. Additional columns are ignored.
+
+All positions are relative to the reference genome and 1-based _i.e.,_ the first
+position in the genome is position 1.
+
+```sh
+# mutations.tsv
+
+voc        mutation
+B.1.1.7    G24914C          # 1 base substitution from G to C at 24914
+B.1.1.7    GAT28280CTA      # 3 base substitution from GAT to CTA at 282280-282282
+B.1.1.7    [21765-21770]del # 21765-21770, inclusive, are deleted
+P.1        28262AACA        # 4 base insertion between 28262 and 28263
+```
+
 # Automated Workflow
 A [snakemake](https://snakemake.readthedocs.io/en/stable/) workflow,
 `voc-identify.smk` is provided for convenience and easier parallel processing.
