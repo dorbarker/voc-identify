@@ -233,12 +233,15 @@ def load_mutations(
         if voc not in vocs:
             vocs[voc] = {}
 
-        vocs[voc][position_range] = mutant
+        try:
+            vocs[voc][position_range].append(mutant)
+        except KeyError:
+            vocs[voc][position_range] = [mutant]
 
         if wt == (None,):
             wt = tuple(reference_seq[position] for position in position_range)
 
-        vocs["reference"][position_range] = wt
+        vocs["reference"][position_range] = [wt]
 
     return vocs
 
