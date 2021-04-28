@@ -234,9 +234,9 @@ def load_mutations(
             vocs[voc] = {}
 
         try:
-            vocs[voc][position_range].append(mutant)
+            vocs[voc][position_range].add(mutant)
         except KeyError:
-            vocs[voc][position_range] = [mutant]
+            vocs[voc][position_range] = set([mutant])
 
         if wt == (None,):
             wt = tuple(reference_seq[position] for position in position_range)
@@ -376,19 +376,22 @@ def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
                 is_mutated = has_mutation.equals(
                     pd.Series(mutation_seq, index=has_mutation.index)
                 )
+
+                if is_mutated:
+                    mutated_regions.append((mutation_positions, mutation_seq))
+
             except ValueError:
 
                 # spurious insertions, especially in Nanopore data
                 if len(has_mutation) != len(mutation_seq):
                     continue
 
-            if is_mutated:
-                mutated_regions.append((mutation_positions, mutation_seq))
-
     return mutated_regions
 
 
-def one_index_range(position_range):
+def one_index_range(position_mutation):
+
+    position_range, mutation = position_mutation
 
     if None in position_range:
         result = [position_range[0] + 1]
@@ -399,11 +402,13 @@ def one_index_range(position_range):
 
 
 def one_index_results(voc_results: VoCResults) -> VoCResults:
+
     oir = (
         pd.DataFrame(voc_results)
         .applymap(lambda cell: [one_index_range(group) for group in cell])
         .to_dict()
     )
+
     return oir
 
 
@@ -416,15 +421,18 @@ def format_read_report(oir_results: VoCResults) -> pd.DataFrame:
 
 
 def format_summary(voc_results: VoCResults) -> pd.DataFrame:
+
     mutation_df = pd.DataFrame(voc_results)
 
     count_of_reads_with_n_snps = mutation_df.applymap(len).agg(Counter)
 
-    return pd.DataFrame(count_of_reads_with_n_snps.to_dict()).transpose()
+    summary = pd.DataFrame(count_of_reads_with_n_snps.to_dict()).transpose()
+
+    return summary
 
 
 def format_mutation_string(position_range: Position, mutations, wt):
-    print(position_range, mutations, wt, sep="\n")
+
     # filter the Nones in insertions
     no_missing_range = [x for x in position_range if x]
 
