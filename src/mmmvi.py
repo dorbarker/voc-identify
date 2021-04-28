@@ -344,45 +344,46 @@ def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
         pad_seq_with_ambiguous(seq, query_positions), index=subject_positions
     )
 
-    for mutation_positions, mutation_seq in mutations.items():
+    for mutation_positions, mutation_seqs in mutations.items():
 
-        # has all of the mutations in the current group
-        relevant = all(p in aln for p in mutation_positions)
+        for mutation_seq in mutation_seqs:
+            # has all of the mutations in the current group
+            relevant = all(p in aln for p in mutation_positions)
 
-        if not relevant:
-            continue
+            if not relevant:
+                continue
 
-        if is_insertion(mutation_positions):
+            if is_insertion(mutation_positions):
+                try:
+
+                    start, _, stop = mutation_positions
+                    has_mutation = aln.loc[start:stop][[None]]
+
+                # This read spans the insertion locus, but doesn't actually have the insertion
+                except KeyError:
+
+                    # if the current 'VOC' is wild type
+                    if all(x is None for x in mutation_seq):
+
+                        mutated_regions.append((mutation_positions, mutation_seq))
+
+                    continue
+            else:
+                has_mutation = aln.loc[list(mutation_positions)]
+
             try:
 
-                start, _, stop = mutation_positions
-                has_mutation = aln.loc[start:stop][[None]]
+                is_mutated = has_mutation.equals(
+                    pd.Series(mutation_seq, index=has_mutation.index)
+                )
+            except ValueError:
 
-            # This read spans the insertion locus, but doesn't actually have the insertion
-            except KeyError:
+                # spurious insertions, especially in Nanopore data
+                if len(has_mutation) != len(mutation_seq):
+                    continue
 
-                # if the current 'VOC' is wild type
-                if all(x is None for x in mutation_seq):
-
-                    mutated_regions.append(mutation_positions)
-
-                continue
-        else:
-            has_mutation = aln.loc[list(mutation_positions)]
-
-        try:
-
-            is_mutated = has_mutation.equals(
-                pd.Series(mutation_seq, index=has_mutation.index)
-            )
-        except ValueError:
-
-            # spurious insertions, especially in Nanopore data
-            if len(has_mutation) != len(mutation_seq):
-                continue
-
-        if is_mutated:
-            mutated_regions.append(mutation_positions)
+            if is_mutated:
+                mutated_regions.append((mutation_positions, mutation_seq))
 
     return mutated_regions
 
@@ -423,7 +424,7 @@ def format_summary(voc_results: VoCResults) -> pd.DataFrame:
 
 
 def format_mutation_string(position_range: Position, mutations, wt):
-
+    print(position_range, mutations, wt, sep="\n")
     # filter the Nones in insertions
     no_missing_range = [x for x in position_range if x]
 
