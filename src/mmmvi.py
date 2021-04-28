@@ -464,7 +464,7 @@ def format_mutation_string(position_range: Position, mutations, wt):
     return s
 
 
-def format_cooccurence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
+def format_cooccurrence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
     # For one VoC at a time
 
     lookup = {
@@ -491,17 +491,19 @@ def format_cooccurence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
     return mx
 
 
-def format_relative_coocurence_matrix(coocurence_matrix: pd.DataFrame) -> pd.DataFrame:
+def format_relative_cooccurrence_matrix(
+    cooccurrence_matrix: pd.DataFrame,
+) -> pd.DataFrame:
 
     rows = []
 
-    for denominator_name in coocurence_matrix.columns:
+    for denominator_name in cooccurrence_matrix.columns:
 
-        denominator = coocurence_matrix.loc[denominator_name, denominator_name]
+        denominator = cooccurrence_matrix.loc[denominator_name, denominator_name]
 
-        for numerator_name in coocurence_matrix.index:
+        for numerator_name in cooccurrence_matrix.index:
 
-            numerator = coocurence_matrix.loc[numerator_name, denominator_name]
+            numerator = cooccurrence_matrix.loc[numerator_name, denominator_name]
 
             try:
                 quotient = int(numerator) / int(denominator)
@@ -519,18 +521,18 @@ def format_relative_coocurence_matrix(coocurence_matrix: pd.DataFrame) -> pd.Dat
     return pd.DataFrame(rows)
 
 
-def format_relative_coocurence_matrices(absolute_coocurrence_matrices):
+def format_relative_cooccurrence_matrices(absolute_cooccurrence_matrices):
     return {
-        v: format_relative_coocurence_matrix(mx)
-        for v, mx in absolute_coocurrence_matrices.items()
+        v: format_relative_cooccurrence_matrix(mx)
+        for v, mx in absolute_cooccurrence_matrices.items()
     }
 
 
-def format_cooccurence_matrices(voc_results: VoCResults, vocs: VoCs):
+def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs):
     *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
 
     return {
-        v: format_cooccurence_matrix(voc_results[v], vocs[v], vocs[wt])
+        v: format_cooccurrence_matrix(voc_results[v], vocs[v], vocs[wt])
         for v in variants
     }
 
@@ -690,19 +692,21 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
     reports = {
         "read_report": format_read_report(oir_results),
         "summary": format_summary(voc_results),
-        "absolute_cooccurence_matrices": format_cooccurence_matrices(voc_results, vocs),
+        "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
+            voc_results, vocs
+        ),
     }
     reports["read_species"] = format_read_species(
         reads, voc_results, reports["read_report"], vocs
     )
 
-    reports["relative_cooccurence_matrices"] = format_relative_coocurence_matrices(
-        reports["absolute_cooccurence_matrices"]
+    reports["relative_cooccurrence_matrices"] = format_relative_cooccurrence_matrices(
+        reports["absolute_cooccurrence_matrices"]
     )
     return reports
 
 
-def write_cooccurence_matrix(
+def write_cooccurrence_matrix(
     variant: str, directory: Path, data: pd.DataFrame, delimiter: str
 ) -> None:
     variant_out_name = variant.replace("/", "_")
@@ -711,7 +715,7 @@ def write_cooccurence_matrix(
 
 
 def write_reports(reports, outdir: Path, delimiter: str):
-    matrices_path = outdir.joinpath("cooccurence_matrices")
+    matrices_path = outdir.joinpath("cooccurrence_matrices")
 
     absolute_matrices = matrices_path.joinpath("absolute")
     absolute_matrices.mkdir(parents=True, exist_ok=True)
@@ -727,11 +731,11 @@ def write_reports(reports, outdir: Path, delimiter: str):
         outdir / "read_species.txt", sep=delimiter, index=False
     )
 
-    for variant, data in reports["absolute_cooccurence_matrices"].items():
-        write_cooccurence_matrix(variant, absolute_matrices, data, delimiter)
+    for variant, data in reports["absolute_cooccurrence_matrices"].items():
+        write_cooccurrence_matrix(variant, absolute_matrices, data, delimiter)
 
-    for variant, data in reports["relative_cooccurence_matrices"].items():
-        write_cooccurence_matrix(variant, relative_matrices, data, delimiter)
+    for variant, data in reports["relative_cooccurrence_matrices"].items():
+        write_cooccurrence_matrix(variant, relative_matrices, data, delimiter)
 
 
 if __name__ == "__main__":
