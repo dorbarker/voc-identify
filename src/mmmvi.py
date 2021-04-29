@@ -431,37 +431,49 @@ def format_summary(voc_results: VoCResults) -> pd.DataFrame:
     return summary
 
 
-def format_mutation_string(position_range: Position, mutations, wt):
+def format_mutation_string(position_range, mutation, wt):
 
-    # filter the Nones in insertions
-    no_missing_range = [x for x in position_range if x]
+    start = position_range[0] + 1  # adjust to 1-based counting for reporting
 
-    start = min(no_missing_range)
-    stop = max(no_missing_range)
+    # insertion
+    if None in position_range:
 
-    # deletions
-    if mutations[position_range][0] is None:
+        insertion_nt = "".join(mutation)
+        s = f"{start}{insertion_nt}"
 
+    # deletion
+    elif None in mutation:
+
+        stop = position_range[-1] + 1
+
+        # point deletion
         if start == stop:
             s = f"[{start}]del"
+
+        # multi-base deletion
         else:
             s = f"[{start}-{stop}]del"
 
-    # insertions
-    elif is_insertion(position_range):
-
-        insertion_nt = "".join(mutations[position_range])
-        s = f"{start + 1}{insertion_nt}"
-
-    # substitutions
+    # substitution
     else:
 
         wildtype_nt = "".join(wt[position_range])
-        variant_nt = "".join(mutations[position_range])
+        variant_nt = "".join(mutation)
 
-        s = f"{wildtype_nt}{start + 1}{variant_nt}"
+        s = f"{wildtype_nt}{start}{variant_nt}"
 
     return s
+
+
+def initialize_matrix(voc, wt):
+
+    mutation_strings = []
+
+    for position_range, mutations in voc.items():
+
+        for mutation in mutations:
+
+            mutation_string = format_mutation_string(position_range, mutation, wt)
 
 
 def format_cooccurrence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
