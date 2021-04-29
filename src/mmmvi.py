@@ -560,76 +560,106 @@ def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs):
     }
 
 
-def format_read_species(
-    reads: Reads, mutation_results: VoCResults, read_report: pd.DataFrame, vocs: VoCs,
-) -> pd.DataFrame:
+def format_read_species(voc_results, vocs):
+
     species = {}
+    total_reads = len(voc_results["reference"].keys())
 
-    total_reads = len(mutation_results["reference"].keys())
+    for variant, reads in voc_results.items():
 
-    for _, variant_positions in read_report.iterrows():
+        for read, positions_mutations in reads.items():
 
-        position_nts = set()
+            if not positions_mutations:
+                continue
 
-        for variant, positions in zip(read_report.columns, variant_positions):
+            key = tuple(positions_mutations)  # for hashibility
 
-            for position_range in positions:
-                # convert between 1-based read_report and 0-based vocs
-                voc_pos = tuple(position - 1 for position in position_range)
+            species_positions, species_nts = map(
+                lambda x: tuple(itertools.chain.from_iterable(x)),
+                zip(*positions_mutations),
+            )
 
-                try:
-                    voc_nt = vocs[variant][voc_pos]
-                except KeyError:
-                    voc_pos = (voc_pos[0], None, voc_pos[0] + 1)
-                    voc_nt = (vocs[variant][voc_pos],)
+            try:
+                species[key]["count"] += 1
 
-                    position_range = (position_range[0],)
+            except KeyError:
+                species[key] = {
+                    "positions": species_positions,
+                    "nucleotides": species_nts,
+                    "count": 1,
+                }
 
-                position_nt = (tuple(position_range), voc_nt)
 
-                position_nts.add(position_nt)
-
-        if not position_nts:  # reads matching no VoCs
-            continue
-
-        pairs = sorted(position_nts, key=lambda x: x[0])
-        key = str(tuple(f"{p}{nt}" for p, nt in pairs))
-
-        try:
-            species[key]["count"] += 1
-
-        except KeyError:
-
-            locations, nucleotides = zip(*pairs)
-
-            # a temporary fix to a weird regression introduced by multibase subs/dels
-            locations = tuple(itertools.chain.from_iterable(locations))
-            nucleotides = tuple(itertools.chain.from_iterable(nucleotides))
-
-            species[key] = {
-                "positions": locations,
-                "nucleotides": tuple("del" if nt is None else nt for nt in nucleotides),
-                "count": 1,  # the number of times this combination of mutations has been observed
-            }
-
-            # add the bitarrays
-            species[key].update(make_voc_bitarray(locations, nucleotides, vocs))
-
-    read_species = pd.DataFrame.from_dict(species, orient="index")
-
-    read_species["proportion_total"] = read_species["count"] / total_reads
-
-    overlapping_counts = read_species_overlap(read_species, reads)
-
-    read_species["reads_overlapping"] = [
-        overlapping_counts[positions] for positions in read_species["positions"]
-    ]
-
-    read_species["proportion_overlapping"] = (
-        read_species["count"] / read_species["reads_overlapping"]
-    )
-
-    return read_species
+# def format_read_species(
+#     reads: Reads, mutation_results: VoCResults, read_report: pd.DataFrame, vocs: VoCs,
+# ) -> pd.DataFrame:
+#     species = {}
+#
+#     total_reads = len(mutation_results["reference"].keys())
+#
+#     for _, variant_positions in read_report.iterrows():
+#
+#         position_nts = set()
+#
+#         for variant, positions in zip(read_report.columns, variant_positions):
+#
+#             for position_range in positions:
+#                 # convert between 1-based read_report and 0-based vocs
+#                 voc_pos = tuple(position - 1 for position in position_range)
+#
+#                 try:
+#                     voc_nt = vocs[variant][voc_pos]
+#                 except KeyError:
+#                     voc_pos = (voc_pos[0], None, voc_pos[0] + 1)
+#                     voc_nt = (vocs[variant][voc_pos],)
+#
+#                     position_range = (position_range[0],)
+#
+#                 position_nt = (tuple(position_range), voc_nt)
+#
+#                 position_nts.add(position_nt)
+#
+#         if not position_nts:  # reads matching no VoCs
+#             continue
+#
+#         pairs = sorted(position_nts, key=lambda x: x[0])
+#         key = str(tuple(f"{p}{nt}" for p, nt in pairs))
+#
+#         try:
+#             species[key]["count"] += 1
+#
+#         except KeyError:
+#
+#             locations, nucleotides = zip(*pairs)
+#
+#             # a temporary fix to a weird regression introduced by multibase subs/dels
+#             locations = tuple(itertools.chain.from_iterable(locations))
+#             nucleotides = tuple(itertools.chain.from_iterable(nucleotides))
+#
+#             species[key] = {
+#                 "positions": locations,
+#                 "nucleotides": tuple("del" if nt is None else nt for nt in nucleotides),
+#                 "count": 1,  # the number of times this combination of mutations has been observed
+#             }
+#
+#             # add the bitarrays
+#             species[key].update(make_voc_bitarray(locations, nucleotides, vocs))
+#
+#     read_species = pd.DataFrame.from_dict(species, orient="index")
+#
+#     read_species["proportion_total"] = read_species["count"] / total_reads
+#
+#     overlapping_counts = read_species_overlap(read_species, reads)
+#
+#     read_species["reads_overlapping"] = [
+#         overlapping_counts[positions] for positions in read_species["positions"]
+#     ]
+#
+#     read_species["proportion_overlapping"] = (
+#         read_species["count"] / read_species["reads_overlapping"]
+#     )
+#
+#     return read_species
 
 
 def make_voc_bitarray(
@@ -719,9 +749,7 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
             voc_results, vocs
         ),
     }
-    reports["read_species"] = format_read_species(
-        reads, voc_results, reports["read_report"], vocs
-    )
+    reports["read_species"] = format_read_species(voc_results, vocs)
 
     reports["relative_cooccurrence_matrices"] = format_relative_cooccurrence_matrices(
         reports["absolute_cooccurrence_matrices"]
