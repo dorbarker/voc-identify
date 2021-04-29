@@ -457,7 +457,9 @@ def format_mutation_string(position_range, mutation, wt):
     # substitution
     else:
 
-        wildtype_nt = "".join(wt[position_range])
+        wildtype = wt[position_range][0]
+
+        wildtype_nt = "".join(wildtype)
         variant_nt = "".join(mutation)
 
         s = f"{wildtype_nt}{start}{variant_nt}"
@@ -467,36 +469,45 @@ def format_mutation_string(position_range, mutation, wt):
 
 def initialize_matrix(voc, wt):
 
+    lookup = {}
     mutation_strings = []
 
     for position_range, mutations in voc.items():
+
+        lookup[position_range] = {}
 
         for mutation in mutations:
 
             mutation_string = format_mutation_string(position_range, mutation, wt)
 
+            lookup[position_range][mutation] = mutation_string
 
-def format_cooccurrence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
+            mutation_strings.append(mutation_string)
+
+    mx = pd.DataFrame(data=0, index=mutation_strings, columns=mutation_strings)
+
+    return lookup, mx
+
+
+def format_cooccurrence_matrix(mutation_result, voc, wt):
     # For one VoC at a time
 
-    lookup = {
-        position_range: format_mutation_string(position_range, mutations, wt)
-        for position_range in mutations.keys()
-    }
+    lookup, mx = initialize_matrix(voc, wt)
 
-    mx = pd.DataFrame(data=0, index=lookup.values(), columns=lookup.values())
+    for read_mutations in mutation_result.values():
 
-    # for each mutation position
-    for positions in mutation_result.values():
-        # self-vs-self
-        for position in positions:
-            name = lookup[position]
+        for position, mutation in read_mutations:
+
+            name = lookup[position][mutation]
 
             mx.loc[name, name] += 1
 
-        for row, col in itertools.permutations(positions, r=2):
-            row_name = lookup[row]
-            col_name = lookup[col]
+        for (row_pos, row_mut), (col_pos, col_mut) in itertools.permutations(
+            read_mutations, r=2
+        ):
+
+            row_name = lookup[row_pos][row_mut]
+            col_name = lookup[col_pos][col_mut]
 
             mx.loc[row_name, col_name] += 1
 
