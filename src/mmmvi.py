@@ -619,7 +619,7 @@ def format_positions_mutations(positions_mutations):
         # insertion
         if None in p:
             species_positions.append(p[0])
-            species_mutations.append(m)
+            species_mutations.append(tuple("del" if x is None else x for x in m))
 
         else:
             species_positions.extend(p)
