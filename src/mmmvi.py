@@ -4,7 +4,7 @@ import pysam
 from collections import Counter
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Dict, List, Tuple, Optional
 import re
 import string
 
@@ -236,7 +236,7 @@ def load_mutations(
         try:
             vocs[voc][position_range].add(mutant)
         except KeyError:
-            vocs[voc][position_range] = set([mutant])
+            vocs[voc][position_range] = {mutant}
 
         if wt == (None,):
             wt = tuple(reference_seq[position] for position in position_range)
@@ -560,19 +560,19 @@ def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs):
     }
 
 
-def format_read_species(voc_results, vocs):
+def format_read_species(voc_results, vocs, reads):
 
     species = {}
     total_reads = len(voc_results["reference"].keys())
 
-    for variant, reads in voc_results.items():
+    for variant, read_results in voc_results.items():
 
-        for read, positions_mutations in reads.items():
+        for positions_mutations in read_results.values():
 
             if not positions_mutations:
                 continue
 
-            key = tuple(positions_mutations)  # for hashibility
+            key = str(positions_mutations)  # for hashibility
 
             species_positions, species_nts = map(
                 lambda x: tuple(itertools.chain.from_iterable(x)),
@@ -583,142 +583,44 @@ def format_read_species(voc_results, vocs):
                 species[key]["count"] += 1
 
             except KeyError:
+
                 species[key] = {
-                    "positions": species_positions,
-                    "nucleotides": species_nts,
+                    "positions": tuple(species_positions),
+                    "nucleotides": tuple(species_nts),
                     "count": 1,
                 }
 
+                bitarrays = make_voc_bitarray(positions_mutations, vocs)
+                species[key].update(bitarrays)
 
-# def format_read_species(
-#     reads: Reads, mutation_results: VoCResults, read_report: pd.DataFrame, vocs: VoCs,
-# ) -> pd.DataFrame:
-#     species = {}
-#
-#     total_reads = len(mutation_results["reference"].keys())
-#
-#     for _, variant_positions in read_report.iterrows():
-#
-#         position_nts = set()
-#
-#         for variant, positions in zip(read_report.columns, variant_positions):
-#
-#             for position_range in positions:
-#                 # convert between 1-based read_report and 0-based vocs
-#                 voc_pos = tuple(position - 1 for position in position_range)
-#
-#                 try:
-#                     voc_nt = vocs[variant][voc_pos]
-#                 except KeyError:
-#                     voc_pos = (voc_pos[0], None, voc_pos[0] + 1)
-#                     voc_nt = (vocs[variant][voc_pos],)
-#
-#                     position_range = (position_range[0],)
-#
-#                 position_nt = (tuple(position_range), voc_nt)
-#
-#                 position_nts.add(position_nt)
-#
-#         if not position_nts:  # reads matching no VoCs
-#             continue
-#
-#         pairs = sorted(position_nts, key=lambda x: x[0])
-#         key = str(tuple(f"{p}{nt}" for p, nt in pairs))
-#
-#         try:
-#             species[key]["count"] += 1
-#
-#         except KeyError:
-#
-#             locations, nucleotides = zip(*pairs)
-#
-#             # a temporary fix to a weird regression introduced by multibase subs/dels
-#             locations = tuple(itertools.chain.from_iterable(locations))
-#             nucleotides = tuple(itertools.chain.from_iterable(nucleotides))
-#
-#             species[key] = {
-#                 "positions": locations,
-#                 "nucleotides": tuple("del" if nt is None else nt for nt in nucleotides),
-#                 "count": 1,  # the number of times this combination of mutations has been observed
-#             }
-#
-#             # add the bitarrays
-#             species[key].update(make_voc_bitarray(locations, nucleotides, vocs))
-#
-#     read_species = pd.DataFrame.from_dict(species, orient="index")
-#
-#     read_species["proportion_total"] = read_species["count"] / total_reads
-#
-#     overlapping_counts = read_species_overlap(read_species, reads)
-#
-#     read_species["reads_overlapping"] = [
-#         overlapping_counts[positions] for positions in read_species["positions"]
-#     ]
-#
-#     read_species["proportion_overlapping"] = (
-#         read_species["count"] / read_species["reads_overlapping"]
-#     )
-#
-#     return read_species
+    read_species = pd.DataFrame.from_dict(species, orient="index")
+
+    read_species["proportion_total"] = read_species["count"] / total_reads
+
+    overlapping_counts = read_species_overlap(read_species, reads)
+
+    read_species["reads_overlapping"] = [
+        overlapping_counts[positions] for positions in read_species["positions"]
+    ]
+
+    read_species["proportion_overlapping"] = (
+        read_species["count"] / read_species["reads_overlapping"]
+    )
+
+    return read_species
 
 
-def make_voc_bitarray(
-    locations: Tuple[int, ...],
-    nucleotides: Tuple[Union[str, Tuple[str, ...]], ...],
-    vocs: VoCs,
-) -> Dict[str, Tuple[int, ...]]:
-    # locations is 1-indexed
-    voc_bitarrays = {}
+def make_voc_bitarray(positions_mutations, vocs):
 
-    locs = tuple(p - 1 for p in locations)  # back to 0-index
+    bitarrays = {}
+    for (position, nts), voc in itertools.product(positions_mutations, vocs):
+        match = int(position in vocs[voc] and nts in vocs[voc][position])
+        try:
+            bitarrays[voc].append(match)
+        except KeyError:
+            bitarrays[voc] = [match]
 
-    are_insertions = [isinstance(x, tuple) for x in nucleotides]
-
-    for variant in vocs:
-
-        bitarray = []
-
-        voc_positions, voc_nts = [], []
-
-        for positions, mutations in vocs[variant].items():
-
-            if len(positions) == len(mutations):
-
-                for p, m in zip(positions, mutations):
-                    voc_positions.append(p)
-                    voc_nts.append(m)
-
-            # insertion handling; otherwise we get off-by N errors for the reference
-            # because a location is never None, this doesn't mess with .index() below
-            else:
-                for m in mutations:
-                    voc_positions.append(None)
-                    voc_nts.append(m)
-
-        for loc, nt, insertion in zip(locs, nucleotides, are_insertions):
-
-            if insertion:
-
-                try:
-                    match = int(vocs[variant][(loc, None, loc + 1)] == nt)
-                except KeyError:
-                    match = 0
-
-            else:
-
-                try:
-
-                    idx = voc_positions.index(loc)
-                    match = int(voc_nts[idx] == nt)
-
-                except ValueError:
-                    match = 0
-
-            bitarray.append(match)
-
-        voc_bitarrays[variant] = tuple(bitarray)
-
-    return voc_bitarrays
+    return {k: tuple(v) for k, v in bitarrays.items()}
 
 
 def read_species_overlap(
@@ -748,8 +650,8 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
         "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
             voc_results, vocs
         ),
+        "read_species": format_read_species(voc_results, vocs, reads),
     }
-    reports["read_species"] = format_read_species(voc_results, vocs)
 
     reports["relative_cooccurrence_matrices"] = format_relative_cooccurrence_matrices(
         reports["absolute_cooccurrence_matrices"]
