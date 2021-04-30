@@ -4,7 +4,7 @@ import pysam
 from collections import Counter
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Dict, List, Tuple, Optional
 import re
 import string
 
@@ -233,12 +233,15 @@ def load_mutations(
         if voc not in vocs:
             vocs[voc] = {}
 
-        vocs[voc][position_range] = mutant
+        try:
+            vocs[voc][position_range].add(mutant)
+        except KeyError:
+            vocs[voc][position_range] = {mutant}
 
         if wt == (None,):
             wt = tuple(reference_seq[position] for position in position_range)
 
-        vocs["reference"][position_range] = wt
+        vocs["reference"][position_range] = [wt]
 
     return vocs
 
@@ -341,50 +344,54 @@ def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
         pad_seq_with_ambiguous(seq, query_positions), index=subject_positions
     )
 
-    for mutation_positions, mutation_seq in mutations.items():
+    for mutation_positions, mutation_seqs in mutations.items():
 
-        # has all of the mutations in the current group
-        relevant = all(p in aln for p in mutation_positions)
+        for mutation_seq in mutation_seqs:
+            # has all of the mutations in the current group
+            relevant = all(p in aln for p in mutation_positions)
 
-        if not relevant:
-            continue
+            if not relevant:
+                continue
 
-        if is_insertion(mutation_positions):
+            if is_insertion(mutation_positions):
+                try:
+
+                    start, _, stop = mutation_positions
+                    has_mutation = aln.loc[start:stop][[None]]
+
+                # This read spans the insertion locus, but doesn't actually have the insertion
+                except KeyError:
+
+                    # if the current 'VOC' is wild type
+                    if all(x is None for x in mutation_seq):
+
+                        mutated_regions.append((mutation_positions, mutation_seq))
+
+                    continue
+            else:
+                has_mutation = aln.loc[list(mutation_positions)]
+
             try:
 
-                start, _, stop = mutation_positions
-                has_mutation = aln.loc[start:stop][[None]]
+                is_mutated = has_mutation.equals(
+                    pd.Series(mutation_seq, index=has_mutation.index)
+                )
 
-            # This read spans the insertion locus, but doesn't actually have the insertion
-            except KeyError:
+                if is_mutated:
+                    mutated_regions.append((mutation_positions, mutation_seq))
 
-                # if the current 'VOC' is wild type
-                if all(x is None for x in mutation_seq):
+            except ValueError:
 
-                    mutated_regions.append(mutation_positions)
-
-                continue
-        else:
-            has_mutation = aln.loc[list(mutation_positions)]
-
-        try:
-
-            is_mutated = has_mutation.equals(
-                pd.Series(mutation_seq, index=has_mutation.index)
-            )
-        except ValueError:
-
-            # spurious insertions, especially in Nanopore data
-            if len(has_mutation) != len(mutation_seq):
-                continue
-
-        if is_mutated:
-            mutated_regions.append(mutation_positions)
+                # spurious insertions, especially in Nanopore data
+                if len(has_mutation) != len(mutation_seq):
+                    continue
 
     return mutated_regions
 
 
-def one_index_range(position_range):
+def one_index_range(position_mutation):
+
+    position_range, mutation = position_mutation
 
     if None in position_range:
         result = [position_range[0] + 1]
@@ -395,11 +402,13 @@ def one_index_range(position_range):
 
 
 def one_index_results(voc_results: VoCResults) -> VoCResults:
+
     oir = (
         pd.DataFrame(voc_results)
         .applymap(lambda cell: [one_index_range(group) for group in cell])
         .to_dict()
     )
+
     return oir
 
 
@@ -412,84 +421,112 @@ def format_read_report(oir_results: VoCResults) -> pd.DataFrame:
 
 
 def format_summary(voc_results: VoCResults) -> pd.DataFrame:
+
     mutation_df = pd.DataFrame(voc_results)
 
     count_of_reads_with_n_snps = mutation_df.applymap(len).agg(Counter)
 
-    return pd.DataFrame(count_of_reads_with_n_snps.to_dict()).transpose()
+    summary = pd.DataFrame(count_of_reads_with_n_snps.to_dict()).transpose()
+
+    return summary
 
 
-def format_mutation_string(position_range: Position, mutations, wt):
+def format_mutation_string(position_range, mutation, wt):
 
-    # filter the Nones in insertions
-    no_missing_range = [x for x in position_range if x]
+    start = position_range[0] + 1  # adjust to 1-based counting for reporting
 
-    start = min(no_missing_range)
-    stop = max(no_missing_range)
+    # insertion
+    if None in position_range:
 
-    # deletions
-    if mutations[position_range][0] is None:
+        insertion_nt = "".join(mutation)
+        s = f"{start}{insertion_nt}"
 
+    # deletion
+    elif None in mutation:
+
+        stop = position_range[-1] + 1
+
+        # point deletion
         if start == stop:
             s = f"[{start}]del"
+
+        # multi-base deletion
         else:
             s = f"[{start}-{stop}]del"
 
-    # insertions
-    elif is_insertion(position_range):
-
-        insertion_nt = "".join(mutations[position_range])
-        s = f"{start + 1}{insertion_nt}"
-
-    # substitutions
+    # substitution
     else:
 
-        wildtype_nt = "".join(wt[position_range])
-        variant_nt = "".join(mutations[position_range])
+        wildtype = wt[position_range][0]
 
-        s = f"{wildtype_nt}{start + 1}{variant_nt}"
+        wildtype_nt = "".join(wildtype)
+        variant_nt = "".join(mutation)
+
+        s = f"{wildtype_nt}{start}{variant_nt}"
 
     return s
 
 
-def format_cooccurence_matrix(mutation_result, mutations, wt) -> pd.DataFrame:
+def initialize_matrix(voc, wt):
+
+    lookup = {}
+    mutation_strings = []
+
+    for position_range, mutations in voc.items():
+
+        lookup[position_range] = {}
+
+        for mutation in mutations:
+
+            mutation_string = format_mutation_string(position_range, mutation, wt)
+
+            lookup[position_range][mutation] = mutation_string
+
+            mutation_strings.append(mutation_string)
+
+    mx = pd.DataFrame(data=0, index=mutation_strings, columns=mutation_strings)
+
+    return lookup, mx
+
+
+def format_cooccurrence_matrix(mutation_result, voc, wt):
     # For one VoC at a time
 
-    lookup = {
-        position_range: format_mutation_string(position_range, mutations, wt)
-        for position_range in mutations.keys()
-    }
+    lookup, mx = initialize_matrix(voc, wt)
 
-    mx = pd.DataFrame(data=0, index=lookup.values(), columns=lookup.values())
+    for read_mutations in mutation_result.values():
 
-    # for each mutation position
-    for positions in mutation_result.values():
-        # self-vs-self
-        for position in positions:
-            name = lookup[position]
+        for position, mutation in read_mutations:
+
+            name = lookup[position][mutation]
 
             mx.loc[name, name] += 1
 
-        for row, col in itertools.permutations(positions, r=2):
-            row_name = lookup[row]
-            col_name = lookup[col]
+        for (row_pos, row_mut), (col_pos, col_mut) in itertools.permutations(
+            read_mutations, r=2
+        ):
+
+            row_name = lookup[row_pos][row_mut]
+            col_name = lookup[col_pos][col_mut]
 
             mx.loc[row_name, col_name] += 1
 
     return mx
 
 
-def format_relative_coocurence_matrix(coocurence_matrix: pd.DataFrame) -> pd.DataFrame:
+def format_relative_cooccurrence_matrix(
+    cooccurrence_matrix: pd.DataFrame,
+) -> pd.DataFrame:
 
     rows = []
 
-    for denominator_name in coocurence_matrix.columns:
+    for denominator_name in cooccurrence_matrix.columns:
 
-        denominator = coocurence_matrix.loc[denominator_name, denominator_name]
+        denominator = cooccurrence_matrix.loc[denominator_name, denominator_name]
 
-        for numerator_name in coocurence_matrix.index:
+        for numerator_name in cooccurrence_matrix.index:
 
-            numerator = coocurence_matrix.loc[numerator_name, denominator_name]
+            numerator = cooccurrence_matrix.loc[numerator_name, denominator_name]
 
             try:
                 quotient = int(numerator) / int(denominator)
@@ -507,76 +544,53 @@ def format_relative_coocurence_matrix(coocurence_matrix: pd.DataFrame) -> pd.Dat
     return pd.DataFrame(rows)
 
 
-def format_relative_coocurence_matrices(absolute_coocurrence_matrices):
+def format_relative_cooccurrence_matrices(absolute_cooccurrence_matrices):
     return {
-        v: format_relative_coocurence_matrix(mx)
-        for v, mx in absolute_coocurrence_matrices.items()
+        v: format_relative_cooccurrence_matrix(mx)
+        for v, mx in absolute_cooccurrence_matrices.items()
     }
 
 
-def format_cooccurence_matrices(voc_results: VoCResults, vocs: VoCs):
+def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs):
     *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
 
     return {
-        v: format_cooccurence_matrix(voc_results[v], vocs[v], vocs[wt])
+        v: format_cooccurrence_matrix(voc_results[v], vocs[v], vocs[wt])
         for v in variants
     }
 
 
-def format_read_species(
-    reads: Reads, mutation_results: VoCResults, read_report: pd.DataFrame, vocs: VoCs,
-) -> pd.DataFrame:
+def format_read_species(voc_results, vocs, reads):
+
     species = {}
+    total_reads = len(voc_results["reference"].keys())
 
-    total_reads = len(mutation_results["reference"].keys())
+    for variant, read_results in voc_results.items():
 
-    for _, variant_positions in read_report.iterrows():
+        for positions_mutations in read_results.values():
 
-        position_nts = set()
+            if not positions_mutations:
+                continue
 
-        for variant, positions in zip(read_report.columns, variant_positions):
+            key = str(positions_mutations)  # for hashibility
 
-            for position_range in positions:
-                # convert between 1-based read_report and 0-based vocs
-                voc_pos = tuple(position - 1 for position in position_range)
+            species_positions, species_mutations = format_positions_mutations(
+                positions_mutations
+            )
 
-                try:
-                    voc_nt = vocs[variant][voc_pos]
-                except KeyError:
-                    voc_pos = (voc_pos[0], None, voc_pos[0] + 1)
-                    voc_nt = (vocs[variant][voc_pos],)
+            try:
+                species[key]["count"] += 1
 
-                    position_range = (position_range[0],)
+            except KeyError:
 
-                position_nt = (tuple(position_range), voc_nt)
+                species[key] = {
+                    "positions": species_positions,
+                    "nucleotides": species_mutations,
+                    "count": 1,
+                }
 
-                position_nts.add(position_nt)
-
-        if not position_nts:  # reads matching no VoCs
-            continue
-
-        pairs = sorted(position_nts, key=lambda x: x[0])
-        key = str(tuple(f"{p}{nt}" for p, nt in pairs))
-
-        try:
-            species[key]["count"] += 1
-
-        except KeyError:
-
-            locations, nucleotides = zip(*pairs)
-
-            # a temporary fix to a weird regression introduced by multibase subs/dels
-            locations = tuple(itertools.chain.from_iterable(locations))
-            nucleotides = tuple(itertools.chain.from_iterable(nucleotides))
-
-            species[key] = {
-                "positions": locations,
-                "nucleotides": tuple("del" if nt is None else nt for nt in nucleotides),
-                "count": 1,  # the number of times this combination of mutations has been observed
-            }
-
-            # add the bitarrays
-            species[key].update(make_voc_bitarray(locations, nucleotides, vocs))
+                bitarrays = make_voc_bitarray(positions_mutations, vocs)
+                species[key].update(bitarrays)
 
     read_species = pd.DataFrame.from_dict(species, orient="index")
 
@@ -595,63 +609,39 @@ def format_read_species(
     return read_species
 
 
-def make_voc_bitarray(
-    locations: Tuple[int, ...],
-    nucleotides: Tuple[Union[str, Tuple[str, ...]], ...],
-    vocs: VoCs,
-) -> Dict[str, Tuple[int, ...]]:
-    # locations is 1-indexed
-    voc_bitarrays = {}
+def format_positions_mutations(positions_mutations):
 
-    locs = tuple(p - 1 for p in locations)  # back to 0-index
+    species_positions = []
+    species_mutations = []
 
-    are_insertions = [isinstance(x, tuple) for x in nucleotides]
+    for p, m in positions_mutations:
 
-    for variant in vocs:
+        # insertion
+        if None in p:
+            species_positions.append(p[0])
+            species_mutations.append(tuple("del" if x is None else x for x in m))
 
-        bitarray = []
+        else:
+            species_positions.extend(p)
+            species_mutations.extend(m)
 
-        voc_positions, voc_nts = [], []
+    species_positions = tuple(p + 1 for p in species_positions)
+    species_mutations = tuple(species_mutations)
 
-        for positions, mutations in vocs[variant].items():
+    return species_positions, species_mutations
 
-            if len(positions) == len(mutations):
 
-                for p, m in zip(positions, mutations):
-                    voc_positions.append(p)
-                    voc_nts.append(m)
+def make_voc_bitarray(positions_mutations, vocs):
 
-            # insertion handling; otherwise we get off-by N errors for the reference
-            # because a location is never None, this doesn't mess with .index() below
-            else:
-                for m in mutations:
-                    voc_positions.append(None)
-                    voc_nts.append(m)
+    bitarrays = {}
+    for (position, nts), voc in itertools.product(positions_mutations, vocs):
+        match = int(position in vocs[voc] and nts in vocs[voc][position])
+        try:
+            bitarrays[voc].append(match)
+        except KeyError:
+            bitarrays[voc] = [match]
 
-        for loc, nt, insertion in zip(locs, nucleotides, are_insertions):
-
-            if insertion:
-
-                try:
-                    match = int(vocs[variant][(loc, None, loc + 1)] == nt)
-                except KeyError:
-                    match = 0
-
-            else:
-
-                try:
-
-                    idx = voc_positions.index(loc)
-                    match = int(voc_nts[idx] == nt)
-
-                except ValueError:
-                    match = 0
-
-            bitarray.append(match)
-
-        voc_bitarrays[variant] = tuple(bitarray)
-
-    return voc_bitarrays
+    return {k: tuple(v) for k, v in bitarrays.items()}
 
 
 def read_species_overlap(
@@ -678,19 +668,19 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
     reports = {
         "read_report": format_read_report(oir_results),
         "summary": format_summary(voc_results),
-        "absolute_cooccurence_matrices": format_cooccurence_matrices(voc_results, vocs),
+        "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
+            voc_results, vocs
+        ),
+        "read_species": format_read_species(voc_results, vocs, reads),
     }
-    reports["read_species"] = format_read_species(
-        reads, voc_results, reports["read_report"], vocs
-    )
 
-    reports["relative_cooccurence_matrices"] = format_relative_coocurence_matrices(
-        reports["absolute_cooccurence_matrices"]
+    reports["relative_cooccurrence_matrices"] = format_relative_cooccurrence_matrices(
+        reports["absolute_cooccurrence_matrices"]
     )
     return reports
 
 
-def write_cooccurence_matrix(
+def write_cooccurrence_matrix(
     variant: str, directory: Path, data: pd.DataFrame, delimiter: str
 ) -> None:
     variant_out_name = variant.replace("/", "_")
@@ -699,7 +689,7 @@ def write_cooccurence_matrix(
 
 
 def write_reports(reports, outdir: Path, delimiter: str):
-    matrices_path = outdir.joinpath("cooccurence_matrices")
+    matrices_path = outdir.joinpath("cooccurrence_matrices")
 
     absolute_matrices = matrices_path.joinpath("absolute")
     absolute_matrices.mkdir(parents=True, exist_ok=True)
@@ -715,11 +705,11 @@ def write_reports(reports, outdir: Path, delimiter: str):
         outdir / "read_species.txt", sep=delimiter, index=False
     )
 
-    for variant, data in reports["absolute_cooccurence_matrices"].items():
-        write_cooccurence_matrix(variant, absolute_matrices, data, delimiter)
+    for variant, data in reports["absolute_cooccurrence_matrices"].items():
+        write_cooccurrence_matrix(variant, absolute_matrices, data, delimiter)
 
-    for variant, data in reports["relative_cooccurence_matrices"].items():
-        write_cooccurence_matrix(variant, relative_matrices, data, delimiter)
+    for variant, data in reports["relative_cooccurrence_matrices"].items():
+        write_cooccurrence_matrix(variant, relative_matrices, data, delimiter)
 
 
 if __name__ == "__main__":
