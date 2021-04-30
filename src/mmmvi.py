@@ -574,9 +574,8 @@ def format_read_species(voc_results, vocs, reads):
 
             key = str(positions_mutations)  # for hashibility
 
-            species_positions, species_nts = map(
-                lambda x: tuple(itertools.chain.from_iterable(x)),
-                zip(*positions_mutations),
+            species_positions, species_mutations = format_positions_mutations(
+                positions_mutations
             )
 
             try:
@@ -585,8 +584,8 @@ def format_read_species(voc_results, vocs, reads):
             except KeyError:
 
                 species[key] = {
-                    "positions": tuple(species_positions),
-                    "nucleotides": tuple(species_nts),
+                    "positions": species_positions,
+                    "nucleotides": species_mutations,
                     "count": 1,
                 }
 
@@ -608,6 +607,28 @@ def format_read_species(voc_results, vocs, reads):
     )
 
     return read_species
+
+
+def format_positions_mutations(positions_mutations):
+
+    species_positions = []
+    species_mutations = []
+
+    for p, m in positions_mutations:
+
+        # insertion
+        if None in p:
+            species_positions.append(p[0])
+            species_mutations.append(m)
+
+        else:
+            species_positions.extend(p)
+            species_mutations.extend(m)
+
+    species_positions = tuple(p + 1 for p in species_positions)
+    species_mutations = tuple(species_mutations)
+
+    return species_positions, species_mutations
 
 
 def make_voc_bitarray(positions_mutations, vocs):
