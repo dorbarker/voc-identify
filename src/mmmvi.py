@@ -4,7 +4,7 @@ import pysam
 from collections import Counter
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Generator
 import re
 import string
 
@@ -16,7 +16,7 @@ Position = Tuple[int, ...]
 Mutation = Tuple[Optional[str], ...]
 Mutations = Dict[Position, Mutation]
 VoCs = Dict[str, Mutations]
-Reads = List[pysam.AlignedSegment]
+Reads = Generator[pysam.AlignedSegment, None, None]
 MutationResults = Dict[str, List[Position]]
 VoCResults = Dict[str, MutationResults]
 
@@ -105,24 +105,14 @@ def main():
         args.only_vocs,
     )
 
-    reads = load_reads(args.bam, args.reference)
+    mutation_results = find_mutations(args.bam, args.reference, vocs)
 
-    mutation_results = find_mutations(reads, vocs)
+    # load reads again to use in reporting
+    reads = load_reads(args.bam, args.reference)
 
     reports = format_reports(reads, mutation_results, vocs)
 
     write_reports(reports, args.outdir, args.delimiter)
-
-
-def is_illumina(reads: Reads) -> bool:
-    # Heuristically determine if the reads are paired or not.
-    #
-    # If duplicated read names outnumber singleton read names by
-    # a factor of at least 10:1, then it's Illumina
-
-    counts = Counter(Counter(read.query_name for read in reads).values())
-
-    return (counts[2] / counts[1]) >= 10
 
 
 def load_reference(reference: Path) -> str:
@@ -257,48 +247,23 @@ def load_reads(bam_path: Path, ref_path: Path) -> Reads:
     with pysam.AlignmentFile(
         bam_path, reference_filename=str(ref_path), mode="rb"
     ) as aln:
-        return list(aln)
+        for read in aln:
+            yield read
 
 
-def find_mutations(reads: Reads, vocs: VoCs) -> VoCResults:
+def find_mutations(bam_path: Path, ref_path: Path, vocs: VoCs) -> VoCResults:
     results = {}
 
     for variant, mutations in vocs.items():
+
+        # load the reads for each VOC, since they're consumed each time
+        reads = load_reads(bam_path, ref_path)
         results[variant] = find_variant_mutations(reads, mutations)
 
     return results
 
 
 def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResults:
-    if is_illumina(reads):
-        result = find_variant_mutations_illumina(reads, mutations)
-
-    else:
-        result = find_variant_mutations_nanopore(reads, mutations)
-
-    return result
-
-
-def find_variant_mutations_nanopore(
-    reads: Reads, mutations: Mutations
-) -> MutationResults:
-    results = {}
-
-    for read in reads:
-        read_name = read.query_name
-
-        seq = read.query_sequence
-
-        pairs = read.get_aligned_pairs()
-
-        results[read_name] = find_mutation_positions(seq, pairs, mutations)
-
-    return results
-
-
-def find_variant_mutations_illumina(
-    reads: Reads, mutations: Mutations
-) -> MutationResults:
     results = {}
 
     for read in reads:
