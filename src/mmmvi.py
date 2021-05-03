@@ -186,6 +186,13 @@ def parse_substitution(s: str):
 
     wt, mutation = (tuple(x) for x in re.findall(r"[ATCG]+", s))
 
+    if len(wt) != len(mutation):
+        wt_str = "".join(wt)
+        mut_str = "".join(mutation)
+        raise ValueError(
+            f"Mismatch between length of wild type '{wt_str}' and mutant '{mut_str}' in '{s}'"
+        )
+
     start = int(re.search(r"\d+", s).group()) - 1
     position_range = tuple(range(start, start + len(wt)))
 
