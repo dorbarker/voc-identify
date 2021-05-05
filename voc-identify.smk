@@ -2,6 +2,11 @@ from pathlib import Path
 
 samples = [p.stem for p in Path('bams').glob('*.bam')]
 
+if config["vocs"]:
+	onlyvocs = "--only-vocs " + " ".join(config["vocs"])
+else:
+	onlyvocs = ""
+
 rule all:
 	input:
 		expand("reports/{sample}/summary.txt", sample=samples)
@@ -11,8 +16,9 @@ rule bam_index:
 			"bams/{sample}.bam"
 		output:
 			"bams/{sample}.bam.bai"
-		shell:
-			"samtools index -b {input}"
+		run:
+			import pysam
+			pysam.index("-b", "{input}")
 
 rule find_vocs:
 	input:
@@ -26,3 +32,4 @@ rule find_vocs:
 		"--reference data/reference.fasta "
 		"--mutations data/mutations.tsv "
 		"--outdir reports/{wildcards.sample}/ "
+		"{onlyvocs} "
