@@ -10,9 +10,7 @@ import string
 
 from . import __version__
 
-complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N", None: None}
-
-Position = Tuple[int, ...]
+Position = Tuple[Optional[int], ...]
 Mutation = Tuple[Optional[str], ...]
 Mutations = Dict[Position, Mutation]
 VoCs = Dict[str, Mutations]
@@ -131,7 +129,7 @@ def load_reference(reference: Path) -> str:
     return seq
 
 
-def parse_mutation(s: str):
+def parse_mutation(s: str) -> Tuple[Position, Mutation, Mutation]:
 
     if s.endswith("del"):
 
@@ -147,7 +145,7 @@ def parse_mutation(s: str):
     return position_range, wt, mutation
 
 
-def parse_deletion(s: str):
+def parse_deletion(s: str) -> Tuple[Position, Mutation, Mutation]:
     # [123-125]del means that reference positions 123, 124, and 125 are deleted in the read
 
     _, *start_stop, _ = re.split(r"[\[\-\]]", s)
@@ -170,7 +168,7 @@ def parse_deletion(s: str):
     return position_range, wt, mutation
 
 
-def parse_substitution(s: str):
+def parse_substitution(s: str) -> Tuple[Position, Mutation, Mutation]:
     # A123T means A in the reference has been substituted by T in read
     # CAT123GTA means C, A, T at positions 123, 124, 125 have been substituted by G, T,  A
 
@@ -189,7 +187,7 @@ def parse_substitution(s: str):
     return position_range, wt, mutation
 
 
-def parse_insertion(s: str):
+def parse_insertion(s: str) -> Tuple[Position, Mutation, Mutation]:
     # 123CAT indicates CAT has been inserted betwixt reference positions 123 and 124
 
     position = int("".join(itertools.takewhile(lambda x: x in string.digits, s)))
