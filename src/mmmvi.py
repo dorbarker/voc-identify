@@ -241,12 +241,23 @@ def load_mutations(
     return vocs
 
 
+def get_reference_header(ref_path: Path) -> str:
+
+    with ref_path.open("r") as fasta:
+        for line in fasta:
+            if line.startswith(">"):
+                return line.strip().lstrip(">")
+
+
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
-    with pysam.AlignmentFile(
-        bam_path, reference_filename=str(ref_path), mode="rb"
-    ) as aln:
-        for read in aln:
-            yield read
+
+    aln = pysam.AlignmentFile(bam_path, reference_filename=str(ref_path), mode="rb")
+
+    contig = get_reference_header(ref_path)
+
+    # until_eof ensures that unaligned read will also be yielded, which is important if you're interested in
+    # getting accurate numbers in a metagenomic sample
+    return aln.fetch(contig=contig, until_eof=True)
 
 
 def find_mutations(bam_path: Path, ref_path: Path, vocs: VoCs) -> VoCResults:
