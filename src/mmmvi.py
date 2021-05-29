@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Generator
 import re
 import string
+from copy import deepcopy
 
 # from . import __version__
 
@@ -265,7 +266,7 @@ def load_reads(bam_path: Path, ref_path: Path) -> Reads:
 
         orientation_tag = "rev" if read.is_reverse else "fwd"
         read_name = f"{read.query_name}:{orientation_tag}"
-        read_name = read.query_name
+
         pairs = read.get_aligned_pairs()
         reference_positions = read.get_reference_positions()
 
@@ -412,12 +413,21 @@ def one_index_results(voc_results: VoCResults) -> VoCResults:
     return oir
 
 
-def format_read_report(oir_results: VoCResults) -> pd.DataFrame:
+def format_read_report(oir_results: VoCResults, reads) -> pd.DataFrame:
+    def expand_sequences_to_reads(report: pd.DataFrame, reads):
+        for idx, row in filtered_report.iterrows():
+            for read in reads[idx]["reads"]:
+                current = deepcopy(row)
+                current.name = read
+                yield current
+
     read_report = pd.DataFrame(oir_results)
 
     has_any_results = read_report.applymap(len).apply(sum, axis="columns") > 0
 
-    return read_report[has_any_results]
+    filtered_report = read_report[has_any_results]
+
+    return pd.DataFrame(expand_sequences_to_reads(filtered_report, reads))
 
 
 def format_summary(voc_results: VoCResults) -> pd.DataFrame:
@@ -666,7 +676,7 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
     oir_results = one_index_results(voc_results)
 
     reports = {
-        "read_report": format_read_report(oir_results),
+        "read_report": format_read_report(oir_results, reads),
         "summary": format_summary(voc_results),
         "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
             voc_results, vocs
