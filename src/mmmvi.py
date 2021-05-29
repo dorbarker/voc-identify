@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple, Optional, Generator
 import re
 import string
 
-from . import __version__
+# from . import __version__
 
 Position = Tuple[Optional[int], ...]
 Mutation = Tuple[Optional[str], ...]
@@ -84,9 +84,9 @@ def arguments():
         help="Look only for these variants, plus the reference",
     )
 
-    parser.add_argument(
-        "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
-    )
+    # parser.add_argument(
+    #    "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
+    # )
 
     return parser.parse_args()
 
@@ -251,13 +251,37 @@ def get_reference_header(ref_path: Path) -> str:
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
 
+    reads = {}
+
     aln = pysam.AlignmentFile(bam_path, reference_filename=str(ref_path), mode="rb")
 
     contig = get_reference_header(ref_path)
 
     # until_eof ensures that unaligned read will also be yielded, which is important if you're interested in
     # getting accurate numbers in a metagenomic sample
-    return aln.fetch(contig=contig, until_eof=True)
+
+    # This will store one copy of duplicated reads, but keeps track of which read names share that sequence
+    for read in aln.fetch(contig=contig, until_eof=True):
+
+        orientation_tag = "rev" if read.is_reverse else "fwd"
+        read_name = f"{read.query_name}:{orientation_tag}"
+        read_name = read.query_name
+        pairs = read.get_aligned_pairs()
+        reference_positions = read.get_reference_positions()
+
+        seq = read.query_sequence
+
+        try:
+            reads[seq]["reads"].add(read_name)
+
+        except KeyError:
+            reads[seq] = {
+                "reads": {read_name},
+                "pairs": pairs,
+                "reference_positions": reference_positions,
+            }
+
+    return reads
 
 
 def find_mutations(bam_path: Path, ref_path: Path, vocs: VoCs) -> VoCResults:
@@ -367,7 +391,7 @@ def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
                 if len(has_mutation) != len(mutation_seq):
                     continue
 
-    return mutated_regions
+    return tuple(mutated_regions)
 
 
 def one_index_range(position_mutation):
