@@ -297,19 +297,14 @@ def find_mutations(bam_path: Path, ref_path: Path, vocs: VoCs) -> VoCResults:
 
 
 def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResults:
+
     results = {}
 
-    for read in reads:
+    for seq, read_data in reads.items():
 
-        orientation_tag = "rev" if read.is_reverse else "fwd"
+        pairs = read_data["pairs"]
 
-        read_name = f"{read.query_name}:{orientation_tag}"
-
-        seq = read.query_sequence
-
-        pairs = read.get_aligned_pairs()
-
-        results[read_name] = find_mutation_positions(seq, pairs, mutations)
+        results[seq] = find_mutation_positions(seq, pairs, mutations)
 
     return results
 
@@ -654,9 +649,9 @@ def read_species_overlap(
 ) -> Dict[Tuple[int, ...], int]:
     overlapping_counts = {species: 0 for species in read_species["positions"]}
 
-    for read in reads:
+    for read_data in reads.values():
 
-        ref_positions = set(read.get_reference_positions())
+        ref_positions = set(read_data["reference_positions"])
 
         for species_positions in overlapping_counts:
 
