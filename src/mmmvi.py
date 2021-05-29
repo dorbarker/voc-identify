@@ -413,13 +413,15 @@ def one_index_results(voc_results: VoCResults) -> VoCResults:
     return oir
 
 
+def expand_sequences_to_reads(table: pd.DataFrame, reads):
+    for idx, row in table.iterrows():
+        for read in reads[idx]["reads"]:
+            current = deepcopy(row)
+            current.name = read
+            yield current
+
+
 def format_read_report(oir_results: VoCResults, reads) -> pd.DataFrame:
-    def expand_sequences_to_reads(report: pd.DataFrame, reads):
-        for idx, row in filtered_report.iterrows():
-            for read in reads[idx]["reads"]:
-                current = deepcopy(row)
-                current.name = read
-                yield current
 
     read_report = pd.DataFrame(oir_results)
 
@@ -430,11 +432,17 @@ def format_read_report(oir_results: VoCResults, reads) -> pd.DataFrame:
     return pd.DataFrame(expand_sequences_to_reads(filtered_report, reads))
 
 
-def format_summary(voc_results: VoCResults) -> pd.DataFrame:
+def format_summary(voc_results: VoCResults, reads) -> pd.DataFrame:
 
     mutation_df = pd.DataFrame(voc_results)
 
-    count_of_reads_with_n_snps = mutation_df.applymap(len).agg(Counter)
+    deduped_read_counts = pd.Series(
+        {seq: len(read_data["reads"]) for seq, read_data in reads.items()}
+    )
+
+    count_of_reads_with_n_snps = pd.DataFrame(
+        expand_sequences_to_reads(mutation_df.applymap(len), reads)
+    ).agg(Counter)
 
     summary = pd.DataFrame(count_of_reads_with_n_snps.to_dict()).transpose()
 
@@ -677,7 +685,7 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
 
     reports = {
         "read_report": format_read_report(oir_results, reads),
-        "summary": format_summary(voc_results),
+        "summary": format_summary(voc_results, reads),
         "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
             voc_results, vocs
         ),
