@@ -9,7 +9,7 @@ import re
 import string
 from copy import deepcopy
 
-# from . import __version__
+from . import __version__
 
 Position = Tuple[Optional[int], ...]
 Mutation = Tuple[Optional[str], ...]
@@ -436,10 +436,6 @@ def format_summary(voc_results: VoCResults, reads) -> pd.DataFrame:
 
     mutation_df = pd.DataFrame(voc_results)
 
-    deduped_read_counts = pd.Series(
-        {seq: len(read_data["reads"]) for seq, read_data in reads.items()}
-    )
-
     count_of_reads_with_n_snps = pd.DataFrame(
         expand_sequences_to_reads(mutation_df.applymap(len), reads)
     ).agg(Counter)
@@ -581,11 +577,12 @@ def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs):
 def format_read_species(voc_results, vocs, reads):
 
     species = {}
-    total_reads = len(voc_results["reference"].keys())
+
+    total_reads = sum(len(read_data["reads"]) for read_data in reads.values())
 
     for variant, read_results in voc_results.items():
 
-        for positions_mutations in read_results.values():
+        for seq, positions_mutations in read_results.items():
 
             if not positions_mutations:
                 continue
@@ -596,19 +593,21 @@ def format_read_species(voc_results, vocs, reads):
                 positions_mutations
             )
 
+            reads_for_seq = len(reads[seq]["reads"])
+
             try:
-                species[key]["count"] += 1
+                species[key]["count"] += reads_for_seq
 
             except KeyError:
 
                 species[key] = {
                     "positions": species_positions,
                     "nucleotides": species_mutations,
-                    "count": 1,
+                    "count": reads_for_seq,
                 }
 
-                bitarrays = make_voc_bitarray(positions_mutations, vocs)
-                species[key].update(bitarrays)
+            bitarrays = make_voc_bitarray(positions_mutations, vocs)
+            species[key].update(bitarrays)
 
     read_species = pd.DataFrame.from_dict(species, orient="index")
 
@@ -675,7 +674,9 @@ def read_species_overlap(
 
             is_overlapping = all(p in ref_positions for p in species_positions)
 
-            overlapping_counts[species_positions] += is_overlapping
+            overlapping_counts[species_positions] += is_overlapping * len(
+                read_data["reads"]
+            )
 
     return overlapping_counts
 
