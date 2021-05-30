@@ -4,7 +4,7 @@ import pysam
 from collections import Counter
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Generator
+from typing import Any, Dict, List, Tuple, Optional
 import re
 import string
 from copy import deepcopy
@@ -15,7 +15,7 @@ Position = Tuple[Optional[int], ...]
 Mutation = Tuple[Optional[str], ...]
 Mutations = Dict[Position, Mutation]
 VoCs = Dict[str, Mutations]
-Reads = Generator[pysam.AlignedSegment, None, None]
+Reads = Dict[str, Dict[str, Any]]
 MutationResults = Dict[str, List[Position]]
 VoCResults = Dict[str, MutationResults]
 
@@ -85,9 +85,9 @@ def arguments():
         help="Look only for these variants, plus the reference",
     )
 
-    # parser.add_argument(
-    #    "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
-    # )
+    parser.add_argument(
+        "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
+    )
 
     return parser.parse_args()
 
