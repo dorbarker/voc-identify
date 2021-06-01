@@ -572,32 +572,24 @@ def format_read_species(voc_results, vocs, reads):
     species = {}
     total_reads = len(voc_results["reference"].keys())
 
-    for variant, read_results in voc_results.items():
+    # get non-redundant set of positions across VOCs
 
-        for positions_mutations in read_results.values():
+    for key, species_data in nonredundant_read_species(voc_results):
 
-            if not positions_mutations:
-                continue
+        positions_mutations = species_data["positions_mutations"]
 
-            key = str(positions_mutations)  # for hashibility
+        species_positions, species_mutations = format_positions_mutations(
+            positions_mutations
+        )
 
-            species_positions, species_mutations = format_positions_mutations(
-                positions_mutations
-            )
+        species[key] = {
+            "positions": species_positions,
+            "nucleotides": species_mutations,
+            "count": species_data["count"],
+        }
 
-            try:
-                species[key]["count"] += 1
-
-            except KeyError:
-
-                species[key] = {
-                    "positions": species_positions,
-                    "nucleotides": species_mutations,
-                    "count": 1,
-                }
-
-                bitarrays = make_voc_bitarray(positions_mutations, vocs)
-                species[key].update(bitarrays)
+        bitarrays = make_voc_bitarray(positions_mutations, vocs)
+        species[key].update(bitarrays)
 
     read_species = pd.DataFrame.from_dict(species, orient="index")
 
@@ -614,6 +606,36 @@ def format_read_species(voc_results, vocs, reads):
     )
 
     return read_species
+
+
+def nonredundant_read_species(voc_results):
+
+    nonredundant = set()
+
+    for read_results in voc_results.values():
+
+        current = {}
+        for positions_mutations in read_results.values():
+
+            if not positions_mutations:
+                continue
+
+            key = str(positions_mutations)
+
+            if key not in nonredundant:
+
+                try:
+                    current[key]["count"] += 1
+
+                except KeyError:
+                    current[key] = {
+                        "positions_mutations": positions_mutations,
+                        "count": 1,
+                    }
+
+        nonredundant.update(current)
+
+        yield from current.items()
 
 
 def format_positions_mutations(positions_mutations):
