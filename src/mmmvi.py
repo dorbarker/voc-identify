@@ -270,35 +270,6 @@ def find_mutations(reads: Reads, vocs: VoCs) -> VoCResults:
 
 
 def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResults:
-    if is_illumina(reads):
-        result = find_variant_mutations_illumina(reads, mutations)
-
-    else:
-        result = find_variant_mutations_nanopore(reads, mutations)
-
-    return result
-
-
-def find_variant_mutations_nanopore(
-    reads: Reads, mutations: Mutations
-) -> MutationResults:
-    results = {}
-
-    for read in reads:
-        read_name = read.query_name
-
-        seq = read.query_sequence
-
-        pairs = read.get_aligned_pairs()
-
-        results[read_name] = find_mutation_positions(seq, pairs, mutations)
-
-    return results
-
-
-def find_variant_mutations_illumina(
-    reads: Reads, mutations: Mutations
-) -> MutationResults:
     results = {}
 
     for read in reads:
