@@ -566,7 +566,7 @@ def format_read_species(voc_results, vocs, reads):
 
     read_species["proportion_total"] = read_species["count"] / total_reads
 
-    overlapping_counts = read_species_overlap(read_species, reads)
+    overlapping_counts = read_species_overlap(read_species["positions"], reads)
 
     read_species["reads_overlapping"] = [
         overlapping_counts[positions] for positions in read_species["positions"]
@@ -621,6 +621,11 @@ def format_positions_mutations(positions_mutations):
             species_positions.append(p[0])
             species_mutations.append(tuple("del" if x is None else x for x in m))
 
+        # the whole species is an insertion
+        if None in m:
+            species_positions.append(p[0])
+            species_mutations.append(tuple("del" for _ in m))
+
         else:
             species_positions.extend(p)
             species_mutations.extend(m)
@@ -656,13 +661,13 @@ def make_voc_bitarray(positions_mutations, vocs: VoCs) -> Dict[str, Tuple[int, .
 
 
 def read_species_overlap(
-    read_species: pd.DataFrame, reads: Reads
+    positions: pd.Series, reads: Reads
 ) -> Dict[Tuple[int, ...], int]:
     # Calculates the number of reads which overlap a read species.
     #
     # To be considered overlapping, the read must contain
     # all of the positions in the species.
-    overlapping_counts = {species: 0 for species in read_species["positions"]}
+    overlapping_counts = {species: 0 for species in positions}
 
     for read in reads:
 
