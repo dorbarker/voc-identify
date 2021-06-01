@@ -687,6 +687,10 @@ def make_voc_bitarray(positions_mutations, vocs: VoCs) -> Dict[str, Tuple[int, .
 def read_species_overlap(
     read_species: pd.DataFrame, reads: Reads
 ) -> Dict[Tuple[int, ...], int]:
+    # Calculates the number of reads which overlap a read species.
+    #
+    # To be considered overlapping, the read must contain
+    # all of the positions in the species.
     overlapping_counts = {species: 0 for species in read_species["positions"]}
 
     for read in reads:
