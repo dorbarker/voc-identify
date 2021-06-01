@@ -660,7 +660,18 @@ def format_positions_mutations(positions_mutations):
     return species_positions, species_mutations
 
 
-def make_voc_bitarray(positions_mutations, vocs):
+def make_voc_bitarray(positions_mutations, vocs: VoCs) -> Dict[str, Tuple[int, ...]]:
+    # Returns a dictionary with a value of a bit array for each VOC key
+    #
+    # The bit array show for each position in the read species if it belongs (1) or not (0)
+    # to each VOC or the reference.
+    #
+    # Consider a read species which covers a potential of 5 mutations which are diagnostic
+    # for VOCs. In this case, the first position happens to be wild type (reference),
+    # but the following 4 positions are diagnostic of the "A" variant. However, the "B" variant
+    # shares the mutations at the 4th and 5th positions with "A". The results would be:
+    #
+    # {"reference": (1, 0, 0, 0, 0), "A": (0, 1, 1, 1, 1,), "B": (0, 0, 0, 1, 1)}
 
     bitarrays = {}
     for (position, nts), voc in itertools.product(positions_mutations, vocs):
