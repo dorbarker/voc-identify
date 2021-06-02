@@ -19,7 +19,7 @@ conda install -c conda-forge -c bioconda -c dorbarker mmmvi
 
 ## pip
 ```sh
-pip install git+gttps://github.com/dorbarker/voc-identify.git
+pip install git+https://github.com/dorbarker/voc-identify.git
 ```
 
 # Running mmmvi
