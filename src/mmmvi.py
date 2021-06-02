@@ -566,7 +566,7 @@ def format_read_species(voc_results, vocs, reads):
 
     read_species["proportion_total"] = read_species["count"] / total_reads
 
-    overlapping_counts = read_species_overlap(read_species, reads)
+    overlapping_counts = read_species_overlap(read_species["positions"], reads)
 
     read_species["reads_overlapping"] = [
         overlapping_counts[positions] for positions in read_species["positions"]
@@ -618,14 +618,23 @@ def format_positions_mutations(positions_mutations):
 
         # insertion
         if None in p:
-            species_positions.append(p[0])
+            species_positions.append((p[0],))
             species_mutations.append(tuple("del" if x is None else x for x in m))
 
-        else:
-            species_positions.extend(p)
-            species_mutations.extend(m)
+        # deletion
+        elif None in m:
+            species_positions.append(p)
+            species_mutations.append(tuple("del" for x in m))
 
-    species_positions = tuple(p + 1 for p in species_positions)
+        # substitution
+        else:
+            species_positions.append(p)
+            species_mutations.append(m)
+
+    species_positions = tuple(
+        tuple(p + 1 for p in group) for group in species_positions
+    )
+
     species_mutations = tuple(species_mutations)
 
     return species_positions, species_mutations
@@ -656,21 +665,29 @@ def make_voc_bitarray(positions_mutations, vocs: VoCs) -> Dict[str, Tuple[int, .
 
 
 def read_species_overlap(
-    read_species: pd.DataFrame, reads: Reads
+    positions: pd.Series, reads: Reads
 ) -> Dict[Tuple[int, ...], int]:
     # Calculates the number of reads which overlap a read species.
     #
     # To be considered overlapping, the read must contain
     # all of the positions in the species.
-    overlapping_counts = {species: 0 for species in read_species["positions"]}
+    overlapping_counts = {species: 0 for species in positions}
 
     for read in reads:
 
-        ref_positions = set(read.get_reference_positions())
+        read_start, *_, read_end = sorted(read.get_reference_positions())
 
         for species_positions in overlapping_counts:
 
-            is_overlapping = all(p in ref_positions for p in species_positions)
+            sorted_positions = sorted(itertools.chain.from_iterable(species_positions))
+
+            try:
+                start, *_, stop = sorted_positions
+                is_overlapping = start >= read_start and stop <= read_end
+            # a species with a single point mutation
+            except ValueError:
+                start, *_ = sorted_positions
+                is_overlapping = read_end >= start >= read_start
 
             overlapping_counts[species_positions] += is_overlapping
 
