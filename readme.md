@@ -11,8 +11,15 @@ present, we can look for cases where multiple nucleotide polymorphisms are
 present on the same read.
 
 # Install
+
+## conda
 ```sh
 conda install -c conda-forge -c bioconda -c dorbarker mmmvi
+```
+
+## pip
+```sh
+pip install git+gttps://github.com/dorbarker/voc-identify.git
 ```
 
 # Running mmmvi
