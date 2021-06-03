@@ -565,7 +565,7 @@ def format_read_species(voc_results, vocs, reads):
         read_species["count"] / read_species["reads_overlapping"]
     )
 
-    return read_species
+    return read_species.sort_values(by="count", ascending=False)
 
 
 def nonredundant_read_species(voc_results):
