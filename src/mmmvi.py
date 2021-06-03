@@ -581,32 +581,33 @@ def format_read_species(voc_results, vocs, reads):
 
 def nonredundant_read_species(voc_results):
 
-    nonredundant = set()
-
+    nonredundant_reads = set()
     for read_results in voc_results.values():
+        for read in read_results.keys():
+            nonredundant_reads.add(read)
 
-        current = {}
-        for positions_mutations in read_results.values():
+    nonredundant = {}
+    for read in nonredundant_reads:
+        positions_mutations = []
+        for voc in voc_results:
+            positions_mutations.extend(voc_results[voc][read])
+        positions_mutations.sort()
 
-            if not positions_mutations:
-                continue
+        if not positions_mutations:
+            continue
 
-            key = str(positions_mutations)
+        key = str(positions_mutations)
 
-            if key not in nonredundant:
+        try:
+            nonredundant[key]["count"] += 1
 
-                try:
-                    current[key]["count"] += 1
+        except KeyError:
+            nonredundant[key] = {
+                "positions_mutations": positions_mutations,
+                "count": 1,
+            }
 
-                except KeyError:
-                    current[key] = {
-                        "positions_mutations": positions_mutations,
-                        "count": 1,
-                    }
-
-        nonredundant.update(current)
-
-        yield from current.items()
+        yield from nonredundant.items()
 
 
 def format_positions_mutations(positions_mutations):
@@ -624,7 +625,7 @@ def format_positions_mutations(positions_mutations):
         # deletion
         elif None in m:
             species_positions.append(p)
-            species_mutations.append(tuple("del" for x in m))
+            species_mutations.append(tuple("del" for _ in m))
 
         # substitution
         else:
