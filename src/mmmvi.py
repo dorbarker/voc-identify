@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import re
 import string
+import logging
 
 from . import __version__
 
@@ -19,6 +20,11 @@ VoCs = Dict[str, Mutations]
 Reads = List[pysam.AlignedSegment]
 MutationResults = Dict[str, List[Position]]
 VoCResults = Dict[str, MutationResults]
+
+
+logging.basicConfig(
+    format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.INFO
+)
 
 
 def arguments():
@@ -253,6 +259,8 @@ def find_mutations(reads: Reads, vocs: VoCs) -> VoCResults:
     results = {}
 
     for variant, mutations in vocs.items():
+        logging.info(f"Searching for {variant} signature mutations")
+
         results[variant] = find_variant_mutations(reads, mutations)
 
     return results
@@ -685,6 +693,9 @@ def read_species_overlap(
 
 
 def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
+
+    logging.info("Formatting reports")
+
     oir_results = one_index_results(voc_results)
 
     reports = {
@@ -711,6 +722,9 @@ def write_cooccurrence_matrix(
 
 
 def write_reports(reports, outdir: Path, delimiter: str):
+
+    logging.info("Writing reports")
+
     matrices_path = outdir.joinpath("cooccurrence_matrices")
 
     absolute_matrices = matrices_path.joinpath("absolute")
