@@ -1,5 +1,6 @@
 import argparse
 import itertools
+import functools
 import pysam
 from collections import Counter
 import pandas as pd
@@ -395,7 +396,7 @@ def format_read_report(oir_results: VoCResults) -> pd.DataFrame:
     return read_report[has_any_results]
 
 
-def format_summary(voc_results: VoCResults) -> pd.DataFrame:
+def format_summary(voc_results: VoCResults, vocs: VoCs) -> pd.DataFrame:
 
     mutation_df = pd.DataFrame(voc_results)
 
@@ -403,7 +404,71 @@ def format_summary(voc_results: VoCResults) -> pd.DataFrame:
 
     summary = pd.DataFrame(count_of_reads_with_n_snps.to_dict()).transpose()
 
-    return summary
+    signature_counts = mutation_coverage(voc_results, vocs)
+    return summary.join(signature_counts)
+
+
+def shannon_entropy():
+    pass
+
+
+def mutation_coverage(voc_results, vocs):
+
+    nonexclusive = {}
+    exclusive = {}
+    report = {}
+
+    for voc, mutation_results in voc_results.items():
+
+        signatures = set(vocs[voc])
+
+        present_mutations = set(
+            itertools.chain.from_iterable(mutation_results.values())
+        )
+
+        nonexclusive[voc] = {
+            "maximum": len(signatures),
+            "present": present_mutations,
+            "signatures": signatures,
+        }
+
+    for voc, data in nonexclusive.items():
+
+        other_sigs = set()
+        for v in nonexclusive:
+            if v not in {voc, "reference"}:
+                other_sigs.update(nonexclusive[v]["signatures"])
+
+        exclusive_sigs = data["signatures"].difference(other_sigs)
+
+        # janky - fix
+        exclusive_present = set(p for (p, m) in data["present"]).intersection(
+            exclusive_sigs
+        )
+
+        exclusive[voc] = {
+            "maximum": len(exclusive_sigs),
+            "present": exclusive_present,
+        }
+
+    for voc in nonexclusive.keys():
+
+        ne_num = len(nonexclusive[voc]["present"])
+        ne_denom = nonexclusive[voc]["maximum"]
+
+        e_num = len(exclusive[voc]["present"])
+        e_denom = exclusive[voc]["maximum"]
+
+        report[voc] = {
+            "complete_signature_mutations": f"{ne_num}/{ne_denom}",
+            "exclusive_signature_mutations": f"{e_num}/{e_denom}",
+        }
+
+    return pd.DataFrame.from_dict(report, orient="index")
+
+
+def theoretical_maximum():
+    pass
 
 
 def format_mutation_string(position_range, mutation, wt):
@@ -700,7 +765,7 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
 
     reports = {
         "read_report": format_read_report(oir_results),
-        "summary": format_summary(voc_results),
+        "summary": format_summary(voc_results, vocs),
         "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
             voc_results, vocs
         ),
