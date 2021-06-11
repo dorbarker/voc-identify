@@ -1,7 +1,5 @@
 import argparse
 import itertools
-
-import numpy as np
 import pysam
 from collections import Counter
 import pandas as pd
@@ -103,7 +101,9 @@ def arguments():
 
 
 def main():
+
     args = arguments()
+    logging.info("Begin")
 
     vocs = load_mutations(
         args.mutations,
@@ -121,6 +121,8 @@ def main():
     reports = format_reports(reads, mutation_results, vocs)
 
     write_reports(reports, args.outdir, args.delimiter)
+
+    logging.info("Complete")
 
 
 def load_reference(reference: Path) -> str:
@@ -252,6 +254,9 @@ def load_mutations(
 
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
+
+    logging.info(f"Loading reads from {bam_path}")
+
     with pysam.AlignmentFile(
         bam_path, reference_filename=str(ref_path), mode="rb"
     ) as aln:
@@ -680,10 +685,10 @@ def nonredundant_read_species(voc_results):
 
     nonredundant = {}
     for read in nonredundant_reads:
-        positions_mutations = []
+        positions_mutations = set()
         for voc in voc_results:
-            positions_mutations.extend(voc_results[voc][read])
-        positions_mutations.sort()
+            positions_mutations.update(voc_results[voc][read])
+        positions_mutations = sorted(positions_mutations)
 
         if not positions_mutations:
             continue
