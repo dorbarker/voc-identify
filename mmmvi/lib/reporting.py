@@ -7,7 +7,7 @@ from typing import Dict, Tuple
 
 import pandas as pd
 
-from .types import VoCs, VoCResults, Reads
+from mmmvi.lib.types import VoCs, VoCResults, Reads
 
 
 def one_index_range(position_mutation):

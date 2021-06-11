@@ -3,7 +3,14 @@ import logging
 import pandas as pd
 
 from typing import List, Optional, Tuple
-from .types import Reads, VoCs, VoCResults, Mutations, MutationResults, Position
+from mmmvi.lib.types import (
+    Reads,
+    VoCs,
+    VoCResults,
+    Mutations,
+    MutationResults,
+    Position,
+)
 
 
 def find_mutations(reads: Reads, vocs: VoCs) -> VoCResults:

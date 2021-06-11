@@ -4,10 +4,7 @@ import logging
 from pathlib import Path
 
 from mmmvi import __version__
-from mmmvi import reporting
-from mmmvi import search
-from mmmvi import load_data
-
+from mmmvi.lib import load_data, reporting, search
 
 logging.basicConfig(
     format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.INFO

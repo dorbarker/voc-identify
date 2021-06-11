@@ -8,7 +8,7 @@ from typing import List
 import pandas as pd
 import pysam
 
-from .types import VoCs, Reads
+from mmmvi.lib.types import VoCs, Reads
 
 
 def load_reference(reference: Path) -> str:
