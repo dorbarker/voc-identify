@@ -1,3 +1,5 @@
+import pysam
+
 from typing import Dict, List, Tuple, Optional
 
 Position = Tuple[int, ...]
