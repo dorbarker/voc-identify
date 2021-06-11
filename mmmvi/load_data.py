@@ -115,6 +115,14 @@ def load_mutations(
     delimiter: str,
     selected_vocs: List[str],
 ) -> VoCs:
+    # Loads the mutations file
+    #
+    # The mutations file is a tabular delimited file, which must
+    # contain at least the following two columns, with other
+    # columns ignored:
+    #   1) a column containing the names of each variant (voc_col)
+    #   2) a column containing the mutation strings (mut_col)
+
     data = pd.read_csv(mutations_path, sep=delimiter)
 
     reference_seq = load_reference(reference_path)
@@ -147,6 +155,10 @@ def load_mutations(
 
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
+    # Loads reads from a BAM file on disk and returns them in a list
+    #
+    # The default pysam.AlignmentFile is an iterator which is consumed by use,
+    # and storing the reads comes at a modest memory cost
 
     logging.info(f"Loading reads from {bam_path}")
 
