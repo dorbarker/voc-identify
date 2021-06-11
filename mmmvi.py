@@ -14,8 +14,6 @@ from mmmvi import __version__
 from mmmvi import reporting
 from mmmvi.types import Reads, VoCs, VoCResults, MutationResults, Mutations, Position
 
-complements = {"A": "T", "T": "A", "G": "C", "C": "G", "N": "N", None: None}
-
 
 logging.basicConfig(
     format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.INFO
