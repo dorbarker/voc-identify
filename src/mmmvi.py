@@ -426,7 +426,12 @@ def shannon_entropy():
     pass
 
 
-def mutation_coverage(voc_results, vocs):
+def mutation_coverage(voc_results, vocs) -> pd.DataFrame:
+    # For each variant, determines how many its signature mutations
+    # are represented in the sample.
+    #
+    # The exclusive signature mutations are those those mutations
+    # which are not shared between with any other variant.
 
     nonexclusive = {}
     exclusive = {}
@@ -481,7 +486,12 @@ def mutation_coverage(voc_results, vocs):
     return pd.DataFrame.from_dict(report, orient="index")
 
 
-def theoretical_maximum(reads: Reads, vocs: VoCs):
+def theoretical_maximum(reads: Reads, vocs: VoCs) -> pd.DataFrame:
+    # Finds the maximum number of mutations for a given variant
+    # that will fit on the median length read.
+    #
+    # The result depends both on read length and on the particular
+    # genomic positions of the mutations for each variant
 
     median_read_length = statistics.median(
         [read.query_alignment_length for read in reads]
