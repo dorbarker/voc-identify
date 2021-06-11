@@ -12,9 +12,10 @@ from .types import VoCs, Reads
 
 
 def load_reference(reference: Path) -> str:
-    # reference needs to be complete and in a single contig anyway
+    # Loads the FASTA-formatted reference genome
     #
-    # written to avoid having to pull in all of biopython
+    # The reference genome *must* be a single complete sequence
+    # in FASTA format
 
     lines = []
     with reference.open("r") as f:
