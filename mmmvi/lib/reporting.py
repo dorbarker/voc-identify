@@ -352,7 +352,7 @@ def nonredundant_read_species(voc_results):
                 "count": 1,
             }
 
-        yield from nonredundant.items()
+    yield from nonredundant.items()
 
 
 def format_positions_mutations(positions_mutations):
