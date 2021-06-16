@@ -2,9 +2,9 @@ from pathlib import Path
 
 samples = [p.stem for p in Path('bams').glob('*.bam')]
 
-if config["vocs"]:
+try:
 	onlyvocs = "--only-vocs " + " ".join(config["vocs"])
-else:
+except KeyError:
 	onlyvocs = ""
 
 rule all:
