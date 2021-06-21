@@ -174,14 +174,13 @@ def load_reads(bam_path: Path, ref_path: Path) -> Reads:
         for read in bam:
 
             seq = read.query_sequence
+            orientation_tag = "rev" if read.is_reverse else "fwd"
+            read_name = f"{read.query_name}:{orientation_tag}"
 
             try:
                 reads[seq]["reads"].add(read_name)
 
             except KeyError:
-
-                orientation_tag = "rev" if read.is_reverse else "fwd"
-                read_name = f"{read.query_name}:{orientation_tag}"
 
                 pairs = read.get_aligned_pairs()
                 reference_positions = read.get_reference_positions()

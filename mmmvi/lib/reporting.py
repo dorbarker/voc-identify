@@ -2,6 +2,7 @@ import itertools
 import logging
 import statistics
 from collections import Counter
+from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -33,12 +34,34 @@ def one_index_results(voc_results: VoCResults) -> VoCResults:
     return oir
 
 
-def format_read_report(oir_results: VoCResults) -> pd.DataFrame:
+def expand_dataframe_by_reads(df: pd.DataFrame, reads: Reads):
+    def _expand_rows():
+        for seq, row in df.iterrows():
+            for read_name in reads[seq]["reads"]:
+                yield row._set_name(read_name, inplace=False)
+
+    return pd.DataFrame(_expand_rows())
+
+
+def format_read_report(oir_results: VoCResults, reads: Reads) -> pd.DataFrame:
+
     read_report = pd.DataFrame(oir_results)
 
     has_any_results = read_report.applymap(len).apply(sum, axis="columns") > 0
 
-    return read_report[has_any_results]
+    reads_with_results = read_report[has_any_results]
+
+    expanded = expand_dataframe_by_reads(reads_with_results, reads)
+
+    expanded["first_pos"] = expanded.apply(
+        lambda row: sorted(itertools.chain.from_iterable(row))[0], axis=1
+    )
+
+    expanded_sorted = expanded.sort_values(by="first_pos", ascending=True).drop(
+        "first_pos", axis=1
+    )
+
+    return expanded_sorted
 
 
 def format_summary(voc_results: VoCResults, vocs: VoCs, reads) -> pd.DataFrame:
@@ -451,7 +474,7 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
     oir_results = one_index_results(voc_results)
 
     reports = {
-        "read_report": format_read_report(oir_results),
+        "read_report": format_read_report(oir_results, reads),
         "summary": format_summary(voc_results, vocs, reads),
         "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
             voc_results, vocs
