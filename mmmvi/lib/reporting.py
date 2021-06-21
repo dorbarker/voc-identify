@@ -316,7 +316,7 @@ def format_read_species(voc_results, vocs, reads):
 
     # get non-redundant set of positions across VOCs
 
-    for key, species_data in nonredundant_read_species(voc_results):
+    for key, species_data in nonredundant_read_species(voc_results, reads):
 
         positions_mutations = species_data["positions_mutations"]
 
@@ -350,32 +350,35 @@ def format_read_species(voc_results, vocs, reads):
     return read_species.sort_values(by="count", ascending=False)
 
 
-def nonredundant_read_species(voc_results):
+def nonredundant_read_species(voc_results, reads: Reads):
+    # old -> {Voc: {name: mutations}}
+    # new -> {Voc: {seq: mutations}}
 
-    nonredundant_reads = set()
+    nonredundant_reads = set()  # full of sequences
     for read_results in voc_results.values():
-        for read in read_results.keys():
-            nonredundant_reads.add(read)
+        for seq in read_results.keys():
+            nonredundant_reads.add(seq)
 
     nonredundant = {}
-    for read in nonredundant_reads:
+    for seq in nonredundant_reads:
         positions_mutations = set()
         for voc in voc_results:
-            positions_mutations.update(voc_results[voc][read])
+            positions_mutations.update(voc_results[voc][seq])
         positions_mutations = sorted(positions_mutations)
 
         if not positions_mutations:
             continue
 
         key = str(positions_mutations)
+        read_count = len(reads[seq]["reads"])
 
         try:
-            nonredundant[key]["count"] += 1
+            nonredundant[key]["count"] += read_count
 
         except KeyError:
             nonredundant[key] = {
                 "positions_mutations": positions_mutations,
-                "count": 1,
+                "count": read_count,
             }
 
     yield from nonredundant.items()
