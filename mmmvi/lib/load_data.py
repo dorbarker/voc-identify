@@ -156,14 +156,40 @@ def load_mutations(
 
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
-    # Loads reads from a BAM file on disk and returns them in a list
+    # Loads reads from a BAM file on disk and returns the unique reads.
     #
-    # The default pysam.AlignmentFile is an iterator which is consumed by use,
-    # and storing the reads comes at a modest memory cost
+    # The the sequence is used as the key. The dictionary keeps track of the
+    # set of read names which share that sequence, as well as the orientation,
+    # alignedment, and reference positions from the original
+    # pysam.AlignedSegment object
 
     logging.info(f"Loading reads from {bam_path}")
 
+    reads = {}
+
     with pysam.AlignmentFile(
         bam_path, reference_filename=str(ref_path), mode="rb"
-    ) as aln:
-        return list(aln)
+    ) as bam:
+
+        for read in bam:
+
+            seq = read.query_sequence
+
+            try:
+                reads[seq]["reads"].add(read_name)
+
+            except KeyError:
+
+                orientation_tag = "rev" if read.is_reverse else "fwd"
+                read_name = f"{read.query_name}:{orientation_tag}"
+
+                pairs = read.get_aligned_pairs()
+                reference_positions = read.get_reference_positions()
+
+                reads[seq] = {
+                    "reads": {read_name},
+                    "pairs": pairs,
+                    "reference_positions": reference_positions,
+                }
+
+    return reads
