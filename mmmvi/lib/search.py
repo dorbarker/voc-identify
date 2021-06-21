@@ -25,19 +25,12 @@ def find_mutations(reads: Reads, vocs: VoCs) -> VoCResults:
 
 
 def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResults:
+
     results = {}
 
-    for read in reads:
+    for seq, read_data in reads.items():
 
-        orientation_tag = "rev" if read.is_reverse else "fwd"
-
-        read_name = f"{read.query_name}:{orientation_tag}"
-
-        seq = read.query_sequence
-
-        pairs = read.get_aligned_pairs()
-
-        results[read_name] = find_mutation_positions(seq, pairs, mutations)
+        results[seq] = find_mutation_positions(seq, read_data["pairs"], mutations)
 
     return results
 
