@@ -26,7 +26,27 @@ pip install git+https://github.com/dorbarker/voc-identify.git
 ## Basic Usage
 
 ```sh
-mmmvi --bam your_sample.bam --mutations mutations.tsv --reference nCoV-2019.fasta --outdir reports/your_sample
+mmmvi --bam your_sample.bam --mutations mutations.tsv --reference reference.fasta --outdir reports/your_sample
+```
+
+## Restrict your search to specific variants
+
+```sh
+mmmvi --bam your_sample.bam        \
+      --mutations mutations.tsv    \
+      --reference reference.fasta  \
+      --outdir reports/your_sample \
+      --only-vocs B.1.1.7 P.1
+```
+
+## Automation with Snakemake
+
+See below for the mandatory directory structure required by this workflow
+
+A config file can be used to restrict which variants mmmvi will search for.
+Omit --configfile and its argument if you wish to search for all variants.
+```sh
+snakemake -s voc-identity.smk -d path/to/your/project --configfile example-config.yaml 
 ```
 
 ## Command Line Arguments
@@ -80,7 +100,7 @@ P.1        28262AACA        # 4 base insertion between 28262 and 28263
 A [snakemake](https://snakemake.readthedocs.io/en/stable/) workflow,
 `voc-identify.smk` is provided for convenience and easier parallel processing.
 
-It assumes your project directory is structured thusly:
+It requires that your project directory is structured thusly:
 
 ```
 .
