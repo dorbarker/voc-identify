@@ -2,7 +2,6 @@ import itertools
 import logging
 import statistics
 from collections import Counter
-from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -64,9 +63,9 @@ def format_read_report(oir_results: VoCResults, reads: Reads) -> pd.DataFrame:
     return expanded_sorted
 
 
-def format_summary(voc_results: VoCResults, vocs: VoCs, reads) -> pd.DataFrame:
+def format_summary(voc_results: VoCResults, vocs: VoCs, reads: Reads) -> pd.DataFrame:
 
-    mutation_df = pd.DataFrame(voc_results)
+    mutation_df = expand_dataframe_by_reads(pd.DataFrame(voc_results), reads)
 
     count_of_reads_with_n_snps = mutation_df.applymap(len).agg(Counter)
 
