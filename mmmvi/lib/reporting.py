@@ -131,9 +131,13 @@ def theoretical_maximum(reads: Reads, vocs: VoCs) -> pd.DataFrame:
     # The result depends both on read length and on the particular
     # genomic positions of the mutations for each variant
 
-    median_read_length = statistics.median(
-        [read.query_alignment_length for read in reads]
-    )
+    all_lengths = []
+    for seq, read_data in reads.items():
+        seq_length = len(seq)
+        for _ in read_data["reads"]:
+            all_lengths.append(seq_length)
+
+    median_read_length = statistics.median(all_lengths)
 
     voc_max = {}
     for voc in vocs:
@@ -419,9 +423,9 @@ def read_species_overlap(
     # all of the positions in the species.
     overlapping_counts = {species: 0 for species in positions}
 
-    for read in reads:
+    for seq, read_data in reads.items():
 
-        read_start, *_, read_end = sorted(read.get_reference_positions())
+        read_start, *_, read_end = sorted(read_data["reference_positions"])
 
         for species_positions in overlapping_counts:
 
