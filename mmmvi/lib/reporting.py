@@ -238,18 +238,18 @@ def initialize_matrix(voc, wt):
     return lookup, mx
 
 
-def format_cooccurrence_matrix(mutation_result, voc, wt):
+def format_cooccurrence_matrix(mutation_result, voc, wt, reads: Reads):
     # For one VoC at a time
 
     lookup, mx = initialize_matrix(voc, wt)
 
-    for read_mutations in mutation_result.values():
+    for seq, read_mutations in mutation_result.items():
 
         for position, mutation in read_mutations:
 
             name = lookup[position][mutation]
 
-            mx.loc[name, name] += 1
+            mx.loc[name, name] += len(reads[seq]["reads"])
 
         for (row_pos, row_mut), (col_pos, col_mut) in itertools.permutations(
             read_mutations, r=2
@@ -258,7 +258,7 @@ def format_cooccurrence_matrix(mutation_result, voc, wt):
             row_name = lookup[row_pos][row_mut]
             col_name = lookup[col_pos][col_mut]
 
-            mx.loc[row_name, col_name] += 1
+            mx.loc[row_name, col_name] += len(reads[seq]["reads"])
 
     return mx
 
@@ -300,11 +300,11 @@ def format_relative_cooccurrence_matrices(absolute_cooccurrence_matrices):
     }
 
 
-def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs):
+def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs, reads: Reads):
     *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
 
     return {
-        v: format_cooccurrence_matrix(voc_results[v], vocs[v], vocs[wt])
+        v: format_cooccurrence_matrix(voc_results[v], vocs[v], vocs[wt], reads)
         for v in variants
     }
 
@@ -476,7 +476,7 @@ def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
         "read_report": format_read_report(oir_results, reads),
         "summary": format_summary(voc_results, vocs, reads),
         "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
-            voc_results, vocs
+            voc_results, vocs, reads
         ),
         "read_species": format_read_species(voc_results, vocs, reads),
     }
