@@ -41,12 +41,15 @@ mmmvi --bam your_sample.bam        \
 
 ## Automation with Snakemake
 
-See below for the mandatory directory structure required by this workflow
+See below for the mandatory directory structure required by this workflow.
 
 A config file can be used to restrict which variants mmmvi will search for.
-Omit --configfile and its argument if you wish to search for all variants.
+Omit `--configfile` and its argument if you wish to search for all variants.
+
+Use the `--jobs` to control the number of parallel jobs.
+
 ```sh
-snakemake -s voc-identity.smk -d path/to/your/project --configfile example-config.yaml 
+snakemake --jobs 2 -s voc-identity.smk -d path/to/your/project --configfile example-config.yaml 
 ```
 
 ## Command Line Arguments

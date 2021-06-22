@@ -18,7 +18,7 @@ rule bam_index:
 			"bams/{sample}.bam.bai"
 		run:
 			import pysam
-			pysam.index("-b", "{input}")
+			pysam.index(input[0])
 
 rule find_vocs:
 	input:
