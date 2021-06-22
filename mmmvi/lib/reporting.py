@@ -42,9 +42,9 @@ def expand_dataframe_by_reads(df: pd.DataFrame, reads: Reads):
     return pd.DataFrame(_expand_rows())
 
 
-def format_read_report(oir_results: VoCResults, reads: Reads) -> pd.DataFrame:
+def format_read_report(voc_results: VoCResults, reads: Reads) -> pd.DataFrame:
 
-    read_report = pd.DataFrame(oir_results)
+    read_report = pd.DataFrame(one_index_results(voc_results))
 
     has_any_results = read_report.applymap(len).apply(sum, axis="columns") > 0
 
@@ -472,14 +472,12 @@ def read_species_overlap(
     return overlapping_counts
 
 
-def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
+def format_reports(voc_results: VoCResults, vocs: VoCs, reads: Reads):
 
     logging.info("Formatting reports")
 
-    oir_results = one_index_results(voc_results)
-
     reports = {
-        "read_report": format_read_report(oir_results, reads),
+        "read_report": format_read_report(voc_results, reads),
         "summary": format_summary(voc_results, vocs, reads),
         "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
             voc_results, vocs, reads

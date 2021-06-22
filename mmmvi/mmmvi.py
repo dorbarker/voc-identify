@@ -101,7 +101,7 @@ def main():
 
     mutation_results = search.find_mutations(reads, vocs)
 
-    reports = reporting.format_reports(reads, mutation_results, vocs)
+    reports = reporting.format_reports(mutation_results, vocs, reads)
 
     reporting.write_reports(reports, args.outdir, args.delimiter)
 
