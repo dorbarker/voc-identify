@@ -472,23 +472,28 @@ def read_species_overlap(
     return overlapping_counts
 
 
-def format_reports(voc_results: VoCResults, vocs: VoCs, reads: Reads):
+def write_summary(voc_results, vocs, reads, outdir, delimiter):
 
-    logging.info("Formatting reports")
+    logging.info("Formatting summary")
 
-    reports = {
-        "read_report": format_read_report(voc_results, reads),
-        "summary": format_summary(voc_results, vocs, reads),
-        "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
-            voc_results, vocs, reads
-        ),
-        "read_species": format_read_species(voc_results, vocs, reads),
-    }
+    summary = format_summary(voc_results, vocs, reads)
+    summary.to_csv(outdir / "summary.txt", sep=delimiter)
 
-    reports["relative_cooccurrence_matrices"] = format_relative_cooccurrence_matrices(
-        reports["absolute_cooccurrence_matrices"]
-    )
-    return reports
+
+def write_read_report(voc_results, reads, outdir, delimiter):
+
+    logging.info("Formatting read report")
+
+    read_report = format_read_report(voc_results, reads)
+    read_report.to_csv(outdir / "read_report.txt", sep=delimiter)
+
+
+def write_read_species(voc_results, vocs, reads, outdir, delimiter):
+
+    logging.info("Formatting read species report")
+
+    read_species = format_read_species(voc_results, vocs, reads)
+    read_species.to_csv(outdir / "read_species.txt", sep=delimiter, index=False)
 
 
 def write_cooccurrence_matrix(
@@ -499,9 +504,12 @@ def write_cooccurrence_matrix(
     data.to_csv(p, sep=delimiter)
 
 
-def write_reports(reports, outdir: Path, delimiter: str):
+def write_cooccurrence_matrices(voc_results, vocs, reads, outdir, delimiter):
 
-    logging.info("Writing reports")
+    logging.info("Formatting co-occurrence matrices")
+
+    absolute = format_cooccurrence_matrices(voc_results, vocs, reads)
+    relative = format_relative_cooccurrence_matrices(absolute)
 
     matrices_path = outdir.joinpath("cooccurrence_matrices")
 
@@ -511,16 +519,21 @@ def write_reports(reports, outdir: Path, delimiter: str):
     relative_matrices = matrices_path.joinpath("relative")
     relative_matrices.mkdir(parents=True, exist_ok=True)
 
-    reports["read_report"].to_csv(outdir / "read_report.txt", sep=delimiter)
-
-    reports["summary"].to_csv(outdir / "summary.txt", sep=delimiter)
-
-    reports["read_species"].to_csv(
-        outdir / "read_species.txt", sep=delimiter, index=False
-    )
-
-    for variant, data in reports["absolute_cooccurrence_matrices"].items():
+    for variant, data in absolute.items():
         write_cooccurrence_matrix(variant, absolute_matrices, data, delimiter)
 
-    for variant, data in reports["relative_cooccurrence_matrices"].items():
+    for variant, data in relative.items():
         write_cooccurrence_matrix(variant, relative_matrices, data, delimiter)
+
+
+def write_reports(voc_results, vocs, reads, outdir: Path, delimiter: str):
+
+    logging.info("Formatting and writing reports")
+
+    write_summary(voc_results, vocs, reads, outdir, delimiter)
+
+    write_read_report(voc_results, reads, outdir, delimiter)
+
+    write_read_species(voc_results, vocs, reads, outdir, delimiter)
+
+    write_cooccurrence_matrices(voc_results, vocs, reads, outdir, delimiter)
