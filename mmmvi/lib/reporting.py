@@ -36,7 +36,7 @@ def one_index_results(voc_results: VoCResults) -> VoCResults:
 def expand_dataframe_by_reads(df: pd.DataFrame, reads: Reads):
     def _expand_rows():
         for seq, row in df.iterrows():
-            for read_name in reads[seq]["reads"]:
+            for read_name in reads[seq].reads:
                 yield row._set_name(read_name, inplace=False)
 
     return pd.DataFrame(_expand_rows())
@@ -156,7 +156,7 @@ def theoretical_maximum(reads: Reads, vocs: VoCs) -> pd.DataFrame:
     all_lengths = []
     for seq, read_data in reads.items():
         seq_length = len(seq)
-        for _ in read_data["reads"]:
+        for _ in read_data.reads:
             all_lengths.append(seq_length)
 
     median_read_length = statistics.median(all_lengths)
@@ -245,11 +245,12 @@ def format_cooccurrence_matrix(mutation_result, voc, wt, reads: Reads):
 
     for seq, read_mutations in mutation_result.items():
 
+        n_reads = len(reads[seq].reads)
         for position, mutation in read_mutations:
 
             name = lookup[position][mutation]
 
-            mx.loc[name, name] += len(reads[seq]["reads"])
+            mx.loc[name, name] += n_reads
 
         for (row_pos, row_mut), (col_pos, col_mut) in itertools.permutations(
             read_mutations, r=2
@@ -258,7 +259,7 @@ def format_cooccurrence_matrix(mutation_result, voc, wt, reads: Reads):
             row_name = lookup[row_pos][row_mut]
             col_name = lookup[col_pos][col_mut]
 
-            mx.loc[row_name, col_name] += len(reads[seq]["reads"])
+            mx.loc[row_name, col_name] += n_reads
 
     return mx
 
@@ -370,7 +371,7 @@ def nonredundant_read_species(voc_results, reads: Reads):
             continue
 
         key = str(positions_mutations)
-        read_count = len(reads[seq]["reads"])
+        read_count = len(reads[seq].reads)
 
         try:
             nonredundant[key]["count"] += read_count
@@ -450,7 +451,7 @@ def read_species_overlap(
 
     for seq, read_data in reads.items():
 
-        read_start, *_, read_end = sorted(read_data["reference_positions"])
+        read_start, *_, read_end = sorted(read_data.get_reference_positions())
 
         for species_positions in overlapping_counts:
 

@@ -178,17 +178,36 @@ def load_reads(bam_path: Path, ref_path: Path) -> Reads:
             read_name = f"{read.query_name}:{orientation_tag}"
 
             try:
-                reads[seq]["reads"].add(read_name)
+                reads[seq].reads.add(read_name)
 
             except KeyError:
 
                 pairs = read.get_aligned_pairs()
                 reference_positions = read.get_reference_positions()
 
-                reads[seq] = {
-                    "reads": {read_name},
-                    "pairs": pairs,
-                    "reference_positions": reference_positions,
-                }
+                reads[seq] = Read(read_name, pairs, reference_positions)
 
     return reads
+
+
+class Read(object):
+
+    __slots__ = ("reads", "pairs", "_difference")
+
+    def __init__(self, read_name, pairs, reference_positions):
+        self.reads = set([read_name])
+        self.pairs = pairs
+        self._difference = self._get_difference(reference_positions)
+
+    def get_reference_positions(self):
+        filtered_s = self._filter_subject_positions()
+        return sorted(filtered_s.union(self._difference))
+
+    def _get_difference(self, reference_positions):
+        filtered_s = self._filter_subject_positions()
+        return filtered_s.difference(set(reference_positions))
+
+    def _filter_subject_positions(self):
+        _, s = zip(*self.pairs)
+        filtered_s = set(filter(None, s))
+        return filtered_s

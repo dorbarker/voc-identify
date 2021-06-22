@@ -30,7 +30,7 @@ def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResult
 
     for seq, read_data in reads.items():
 
-        results[seq] = find_mutation_positions(seq, read_data["pairs"], mutations)
+        results[seq] = find_mutation_positions(seq, read_data.pairs, mutations)
 
     return results
 
