@@ -30,7 +30,12 @@ def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResult
 
     for seq, read_data in reads.items():
 
-        results[seq] = find_mutation_positions(seq, read_data.pairs, mutations)
+        query_positions, subject_positions = zip(
+            *read_data["read_obj"].get_aligned_pairs()
+        )
+        results[seq] = find_mutation_positions(
+            seq, query_positions, subject_positions, mutations
+        )
 
     return results
 
@@ -60,11 +65,11 @@ def is_insertion(position_range: Tuple[Optional[int], ...]) -> bool:
     return result
 
 
-def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
+def find_mutation_positions(
+    seq: str, query_positions, subject_positions, mutations
+) -> List[Position]:
 
     mutated_regions = []
-
-    query_positions, subject_positions = zip(*pairs)
 
     aln = pd.Series(
         pad_seq_with_ambiguous(seq, query_positions), index=subject_positions
