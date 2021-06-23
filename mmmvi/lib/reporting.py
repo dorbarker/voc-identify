@@ -455,6 +455,10 @@ def read_species_overlap(
             read_data["read_obj"].get_reference_positions()
         )
 
+        # convert 0-based to 1-based
+        read_start += 1
+        read_end += 1
+
         n_reads = len(read_data["reads"])
         for species_positions in overlapping_counts:
 
