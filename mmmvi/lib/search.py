@@ -25,19 +25,17 @@ def find_mutations(reads: Reads, vocs: VoCs) -> VoCResults:
 
 
 def find_variant_mutations(reads: Reads, mutations: Mutations) -> MutationResults:
+
     results = {}
 
-    for read in reads:
+    for seq, read_data in reads.items():
 
-        orientation_tag = "rev" if read.is_reverse else "fwd"
-
-        read_name = f"{read.query_name}:{orientation_tag}"
-
-        seq = read.query_sequence
-
-        pairs = read.get_aligned_pairs()
-
-        results[read_name] = find_mutation_positions(seq, pairs, mutations)
+        query_positions, subject_positions = zip(
+            *read_data["read_obj"].get_aligned_pairs()
+        )
+        results[seq] = find_mutation_positions(
+            seq, query_positions, subject_positions, mutations
+        )
 
     return results
 
@@ -67,11 +65,11 @@ def is_insertion(position_range: Tuple[Optional[int], ...]) -> bool:
     return result
 
 
-def find_mutation_positions(seq: str, pairs, mutations) -> List[Position]:
+def find_mutation_positions(
+    seq: str, query_positions, subject_positions, mutations
+) -> List[Position]:
 
     mutated_regions = []
-
-    query_positions, subject_positions = zip(*pairs)
 
     aln = pd.Series(
         pad_seq_with_ambiguous(seq, query_positions), index=subject_positions

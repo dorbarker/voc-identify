@@ -33,17 +33,39 @@ def one_index_results(voc_results: VoCResults) -> VoCResults:
     return oir
 
 
-def format_read_report(oir_results: VoCResults) -> pd.DataFrame:
-    read_report = pd.DataFrame(oir_results)
+def expand_dataframe_by_reads(df: pd.DataFrame, reads: Reads):
+    def _expand_rows():
+        for seq, row in df.iterrows():
+            for read_name in reads[seq]["reads"]:
+                yield row._set_name(read_name, inplace=False)
+
+    return pd.DataFrame(_expand_rows())
+
+
+def format_read_report(voc_results: VoCResults, reads: Reads) -> pd.DataFrame:
+
+    read_report = pd.DataFrame(one_index_results(voc_results))
 
     has_any_results = read_report.applymap(len).apply(sum, axis="columns") > 0
 
-    return read_report[has_any_results]
+    reads_with_results = read_report[has_any_results]
+
+    expanded = expand_dataframe_by_reads(reads_with_results, reads)
+
+    expanded["first_pos"] = expanded.apply(
+        lambda row: sorted(itertools.chain.from_iterable(row))[0], axis=1
+    )
+
+    expanded_sorted = expanded.sort_values(by="first_pos", ascending=True).drop(
+        "first_pos", axis=1
+    )
+
+    return expanded_sorted
 
 
-def format_summary(voc_results: VoCResults, vocs: VoCs, reads) -> pd.DataFrame:
+def format_summary(voc_results: VoCResults, vocs: VoCs, reads: Reads) -> pd.DataFrame:
 
-    mutation_df = pd.DataFrame(voc_results)
+    mutation_df = expand_dataframe_by_reads(pd.DataFrame(voc_results), reads)
 
     count_of_reads_with_n_snps = mutation_df.applymap(len).agg(Counter)
 
@@ -53,6 +75,7 @@ def format_summary(voc_results: VoCResults, vocs: VoCs, reads) -> pd.DataFrame:
         .fillna(0)
         .applymap(int)
     )
+    summary = summary.reindex(sorted(summary.columns), axis=1)
 
     max_coverage = theoretical_maximum(reads, vocs)
     signature_counts = mutation_coverage(voc_results, vocs)
@@ -131,9 +154,13 @@ def theoretical_maximum(reads: Reads, vocs: VoCs) -> pd.DataFrame:
     # The result depends both on read length and on the particular
     # genomic positions of the mutations for each variant
 
-    median_read_length = statistics.median(
-        [read.query_alignment_length for read in reads]
-    )
+    all_lengths = []
+    for seq, read_data in reads.items():
+        seq_length = len(seq)
+        for _ in read_data["reads"]:
+            all_lengths.append(seq_length)
+
+    median_read_length = statistics.median(all_lengths)
 
     voc_max = {}
     for voc in vocs:
@@ -212,18 +239,19 @@ def initialize_matrix(voc, wt):
     return lookup, mx
 
 
-def format_cooccurrence_matrix(mutation_result, voc, wt):
+def format_cooccurrence_matrix(mutation_result, voc, wt, reads: Reads):
     # For one VoC at a time
 
     lookup, mx = initialize_matrix(voc, wt)
 
-    for read_mutations in mutation_result.values():
+    for seq, read_mutations in mutation_result.items():
 
+        n_reads = len(reads[seq]["reads"])
         for position, mutation in read_mutations:
 
             name = lookup[position][mutation]
 
-            mx.loc[name, name] += 1
+            mx.loc[name, name] += n_reads
 
         for (row_pos, row_mut), (col_pos, col_mut) in itertools.permutations(
             read_mutations, r=2
@@ -232,7 +260,7 @@ def format_cooccurrence_matrix(mutation_result, voc, wt):
             row_name = lookup[row_pos][row_mut]
             col_name = lookup[col_pos][col_mut]
 
-            mx.loc[row_name, col_name] += 1
+            mx.loc[row_name, col_name] += n_reads
 
     return mx
 
@@ -274,11 +302,11 @@ def format_relative_cooccurrence_matrices(absolute_cooccurrence_matrices):
     }
 
 
-def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs):
+def format_cooccurrence_matrices(voc_results: VoCResults, vocs: VoCs, reads: Reads):
     *variants, wt = sorted(vocs.keys(), key=lambda x: x == "reference")
 
     return {
-        v: format_cooccurrence_matrix(voc_results[v], vocs[v], vocs[wt])
+        v: format_cooccurrence_matrix(voc_results[v], vocs[v], vocs[wt], reads)
         for v in variants
     }
 
@@ -290,7 +318,7 @@ def format_read_species(voc_results, vocs, reads):
 
     # get non-redundant set of positions across VOCs
 
-    for key, species_data in nonredundant_read_species(voc_results):
+    for key, species_data in nonredundant_read_species(voc_results, reads):
 
         positions_mutations = species_data["positions_mutations"]
 
@@ -324,32 +352,35 @@ def format_read_species(voc_results, vocs, reads):
     return read_species.sort_values(by="count", ascending=False)
 
 
-def nonredundant_read_species(voc_results):
+def nonredundant_read_species(voc_results, reads: Reads):
+    # old -> {Voc: {name: mutations}}
+    # new -> {Voc: {seq: mutations}}
 
-    nonredundant_reads = set()
+    nonredundant_reads = set()  # full of sequences
     for read_results in voc_results.values():
-        for read in read_results.keys():
-            nonredundant_reads.add(read)
+        for seq in read_results.keys():
+            nonredundant_reads.add(seq)
 
     nonredundant = {}
-    for read in nonredundant_reads:
+    for seq in nonredundant_reads:
         positions_mutations = set()
         for voc in voc_results:
-            positions_mutations.update(voc_results[voc][read])
+            positions_mutations.update(voc_results[voc][seq])
         positions_mutations = sorted(positions_mutations)
 
         if not positions_mutations:
             continue
 
         key = str(positions_mutations)
+        read_count = len(reads[seq]["reads"])
 
         try:
-            nonredundant[key]["count"] += 1
+            nonredundant[key]["count"] += read_count
 
         except KeyError:
             nonredundant[key] = {
                 "positions_mutations": positions_mutations,
-                "count": 1,
+                "count": read_count,
             }
 
     yield from nonredundant.items()
@@ -419,10 +450,17 @@ def read_species_overlap(
     # all of the positions in the species.
     overlapping_counts = {species: 0 for species in positions}
 
-    for read in reads:
+    for seq, read_data in reads.items():
 
-        read_start, *_, read_end = sorted(read.get_reference_positions())
+        read_start, *_, read_end = sorted(
+            read_data["read_obj"].get_reference_positions()
+        )
 
+        # convert 0-based to 1-based
+        read_start += 1
+        read_end += 1
+
+        n_reads = len(read_data["reads"])
         for species_positions in overlapping_counts:
 
             sorted_positions = sorted(itertools.chain.from_iterable(species_positions))
@@ -435,30 +473,33 @@ def read_species_overlap(
                 start, *_ = sorted_positions
                 is_overlapping = read_end >= start >= read_start
 
-            overlapping_counts[species_positions] += is_overlapping
+            overlapping_counts[species_positions] += is_overlapping * n_reads
 
     return overlapping_counts
 
 
-def format_reports(reads: Reads, voc_results: VoCResults, vocs: VoCs):
+def write_summary(voc_results, vocs, reads, outdir, delimiter):
 
-    logging.info("Formatting reports")
+    logging.info("Formatting summary")
 
-    oir_results = one_index_results(voc_results)
+    summary = format_summary(voc_results, vocs, reads)
+    summary.to_csv(outdir / "summary.txt", sep=delimiter)
 
-    reports = {
-        "read_report": format_read_report(oir_results),
-        "summary": format_summary(voc_results, vocs, reads),
-        "absolute_cooccurrence_matrices": format_cooccurrence_matrices(
-            voc_results, vocs
-        ),
-        "read_species": format_read_species(voc_results, vocs, reads),
-    }
 
-    reports["relative_cooccurrence_matrices"] = format_relative_cooccurrence_matrices(
-        reports["absolute_cooccurrence_matrices"]
-    )
-    return reports
+def write_read_report(voc_results, reads, outdir, delimiter):
+
+    logging.info("Formatting read report")
+
+    read_report = format_read_report(voc_results, reads)
+    read_report.to_csv(outdir / "read_report.txt", sep=delimiter)
+
+
+def write_read_species(voc_results, vocs, reads, outdir, delimiter):
+
+    logging.info("Formatting read species report")
+
+    read_species = format_read_species(voc_results, vocs, reads)
+    read_species.to_csv(outdir / "read_species.txt", sep=delimiter, index=False)
 
 
 def write_cooccurrence_matrix(
@@ -469,9 +510,12 @@ def write_cooccurrence_matrix(
     data.to_csv(p, sep=delimiter)
 
 
-def write_reports(reports, outdir: Path, delimiter: str):
+def write_cooccurrence_matrices(voc_results, vocs, reads, outdir, delimiter):
 
-    logging.info("Writing reports")
+    logging.info("Formatting co-occurrence matrices")
+
+    absolute = format_cooccurrence_matrices(voc_results, vocs, reads)
+    relative = format_relative_cooccurrence_matrices(absolute)
 
     matrices_path = outdir.joinpath("cooccurrence_matrices")
 
@@ -481,16 +525,23 @@ def write_reports(reports, outdir: Path, delimiter: str):
     relative_matrices = matrices_path.joinpath("relative")
     relative_matrices.mkdir(parents=True, exist_ok=True)
 
-    reports["read_report"].to_csv(outdir / "read_report.txt", sep=delimiter)
-
-    reports["summary"].to_csv(outdir / "summary.txt", sep=delimiter)
-
-    reports["read_species"].to_csv(
-        outdir / "read_species.txt", sep=delimiter, index=False
-    )
-
-    for variant, data in reports["absolute_cooccurrence_matrices"].items():
+    for variant, data in absolute.items():
         write_cooccurrence_matrix(variant, absolute_matrices, data, delimiter)
 
-    for variant, data in reports["relative_cooccurrence_matrices"].items():
+    for variant, data in relative.items():
         write_cooccurrence_matrix(variant, relative_matrices, data, delimiter)
+
+
+def write_reports(voc_results, vocs, reads, outdir: Path, delimiter: str):
+
+    logging.info("Formatting and writing reports")
+
+    outdir.mkdir(exist_ok=True, parents=True)
+
+    write_summary(voc_results, vocs, reads, outdir, delimiter)
+
+    write_read_report(voc_results, reads, outdir, delimiter)
+
+    write_read_species(voc_results, vocs, reads, outdir, delimiter)
+
+    write_cooccurrence_matrices(voc_results, vocs, reads, outdir, delimiter)
