@@ -530,6 +530,8 @@ def write_reports(voc_results, vocs, reads, outdir: Path, delimiter: str):
 
     logging.info("Formatting and writing reports")
 
+    outdir.mkdir(exist_ok=True, parents=True)
+
     write_summary(voc_results, vocs, reads, outdir, delimiter)
 
     write_read_report(voc_results, reads, outdir, delimiter)
