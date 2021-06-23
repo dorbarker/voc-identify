@@ -455,6 +455,7 @@ def read_species_overlap(
             read_data["read_obj"].get_reference_positions()
         )
 
+        n_reads = len(read_data["reads"])
         for species_positions in overlapping_counts:
 
             sorted_positions = sorted(itertools.chain.from_iterable(species_positions))
@@ -467,7 +468,7 @@ def read_species_overlap(
                 start, *_ = sorted_positions
                 is_overlapping = read_end >= start >= read_start
 
-            overlapping_counts[species_positions] += is_overlapping
+            overlapping_counts[species_positions] += is_overlapping * n_reads
 
     return overlapping_counts
 
