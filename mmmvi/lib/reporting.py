@@ -75,7 +75,7 @@ def format_summary(voc_results: VoCResults, vocs: VoCs, reads: Reads) -> pd.Data
         .fillna(0)
         .applymap(int)
     )
-    summary.reindex(sorted(summary.columns), axis=1)
+    summary = summary.reindex(sorted(summary.columns), axis=1)
 
     max_coverage = theoretical_maximum(reads, vocs)
     signature_counts = mutation_coverage(voc_results, vocs)
