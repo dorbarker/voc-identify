@@ -158,7 +158,8 @@ def load_tabular_mutations(
         if selected_vocs and voc not in selected_vocs:
             continue
 
-        mutation_string = row[mut_col]
+        mutation_string = row[mut_col].strip()
+
         try:
             position_range, wt, mutant = parse_mutation(mutation_string)
 
