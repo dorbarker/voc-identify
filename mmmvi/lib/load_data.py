@@ -137,7 +137,15 @@ def load_mutations(
         if selected_vocs and voc not in selected_vocs:
             continue
 
-        position_range, wt, mutant = parse_mutation(row[mut_col])
+        mutation_string = row[mut_col]
+        try:
+            position_range, wt, mutant = parse_mutation(mutation_string)
+
+        # catch *all* exceptions from parsing,
+        # because any problems here should stop the program
+        except Exception:
+            msg = f"Invalid mutation string: '{mutation_string}'"
+            raise InvalidMutation(msg)
 
         if voc not in vocs:
             vocs[voc] = {}
@@ -183,3 +191,7 @@ def load_reads(bam_path: Path, ref_path: Path) -> Reads:
 
                 reads[seq] = {"reads": {read_name}, "read_obj": read}
     return reads
+
+
+class InvalidMutation(Exception):
+    pass
