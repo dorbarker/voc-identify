@@ -234,9 +234,9 @@ def load_variant_from_phe_yaml(
 
         elif mutation["type"] == "insertion":
 
-            mutant = tuple(mutation["variant-base"])
+            mutant = tuple(mutation["variant-base"][1:])
             wt = tuple(None for _ in mutant)
-            position_range = tuple(range(start, start + len(wt)))
+            position_range = (start, None, start + 1)
 
         elif mutation["type"] == "deletion":
 
