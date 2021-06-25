@@ -1,3 +1,4 @@
 pysam>=0.16.0
 pandas>=1.2.3
 setuptools
+yaml

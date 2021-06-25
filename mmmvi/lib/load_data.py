@@ -2,13 +2,14 @@ import itertools
 import logging
 import re
 import string
+import yaml
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import pandas as pd
 import pysam
 
-from mmmvi.lib.types import VoCs, Reads
+from mmmvi.lib.types import VoCs, Reads, Mutations
 
 
 def load_reference(reference: Path) -> str:
@@ -161,6 +162,79 @@ def load_mutations(
         vocs["reference"][position_range] = [wt]
 
     return vocs
+
+
+def load_mutations_phe(mutations_dir: Path, reference_path: Path) -> VoCs:
+
+    vocs = {"reference": {}}
+
+    variant_files = mutations_dir.glob("*.yml")
+
+    for variant in variant_files:
+
+        voc_name, reference, voc = load_variant_from_phe_yaml(variant, reference_path)
+
+        vocs["reference"].update(reference)
+        vocs[voc_name] = voc
+
+    return vocs
+
+
+def load_variant_from_phe_yaml(
+    yaml_variant: Path, reference_path: Path
+) -> Tuple[str, Mutations, Mutations]:
+
+    reference = {}
+    voc = {}
+
+    data = yaml.safe_load(yaml_variant.read_text())
+    reference_seq = load_reference(reference_path)
+
+    for mutation in data["variants"]:
+
+        start = mutation["one-based-reference-position"] - 1
+
+        if mutation["type"] == "SNP":
+
+            wt = (mutation["reference-base"],)
+            mutant = (mutation["variant-base"],)
+            position_range = (start,)
+
+        elif mutation["type"] == "MNP":
+
+            wt = tuple(mutation["reference-base"])
+            mutant = tuple(mutation["variant-base"])
+            position_range = tuple(range(start, start + len(wt)))
+
+        elif mutation["type"] == "insertion":
+
+            mutant = tuple(mutation["variant-base"])
+            wt = tuple(None for _ in mutant)
+            position_range = tuple(range(start, start + len(wt)))
+
+        elif mutation["type"] == "deletion":
+
+            position_range = tuple(
+                range(start, start + len(mutation["reference-base"]) - 1)
+            )
+            wt = (None,)
+            mutant = tuple(None for _ in position_range)
+
+        else:
+            msg = "Mutation type '{}' is not implemented".format(mutation["type"])
+            raise NotImplementedError(msg)
+
+        if wt == (None,):
+            wt = tuple(reference_seq[position] for position in position_range)
+
+        try:
+            voc[position_range].add(mutant)
+        except KeyError:
+            voc[position_range] = {mutant}
+
+        reference[position_range] = [wt]
+
+    return data["unique-id"], reference, voc
 
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
