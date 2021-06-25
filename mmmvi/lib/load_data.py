@@ -12,6 +12,26 @@ import pysam
 from mmmvi.lib.types import VoCs, Reads, Mutations
 
 
+def load_mutations(
+    mutations_path: Path,
+    reference_path: Path,
+    voc_col: str,
+    mut_col: str,
+    delimiter: str,
+    selected_vocs: List[str],
+) -> VoCs:
+
+    if mutations_path.is_file():
+        vocs = load_tabular_mutations(
+            mutations_path, reference_path, voc_col, mut_col, delimiter, selected_vocs
+        )
+
+    elif mutations_path.is_dir():
+        vocs = load_mutations_phe(mutations_path, reference_path, selected_vocs)
+
+    return vocs
+
+
 def load_reference(reference: Path) -> str:
     # Loads the FASTA-formatted reference genome
     #
@@ -109,7 +129,7 @@ def parse_insertion(s: str):
     return position_range, wt, mutation
 
 
-def load_mutations(
+def load_tabular_mutations(
     mutations_path: Path,
     reference_path: Path,
     voc_col: str,
@@ -164,7 +184,9 @@ def load_mutations(
     return vocs
 
 
-def load_mutations_phe(mutations_dir: Path, reference_path: Path) -> VoCs:
+def load_mutations_phe(
+    mutations_dir: Path, reference_path: Path, selected_vocs: List[str]
+) -> VoCs:
 
     vocs = {"reference": {}}
 
@@ -172,10 +194,13 @@ def load_mutations_phe(mutations_dir: Path, reference_path: Path) -> VoCs:
 
     for variant in variant_files:
 
-        voc_name, reference, voc = load_variant_from_phe_yaml(variant, reference_path)
+        voc, reference, mutations = load_variant_from_phe_yaml(variant, reference_path)
+
+        if selected_vocs and voc not in selected_vocs:
+            continue
 
         vocs["reference"].update(reference)
-        vocs[voc_name] = voc
+        vocs[voc] = mutations
 
     return vocs
 
