@@ -20,6 +20,12 @@ def load_mutations(
     delimiter: str,
     selected_vocs: List[str],
 ) -> VoCs:
+    # Decides whether to load variant definitions from a tabular file or from a directory
+    # containing Public Health England-formatted YAML files.
+    #
+    # If the path provided by the --mutations command line argument is a file,
+    # load_tabular_mutations is attempted. If the path instead refers to a directory,
+    # load_mutations_phe is attempted.
 
     if mutations_path.is_file():
         vocs = load_tabular_mutations(
@@ -188,14 +194,18 @@ def load_tabular_mutations(
 def load_mutations_phe(
     mutations_dir: Path, reference_path: Path, selected_vocs: List[str]
 ) -> VoCs:
+    # Manages loading variant definitions from a directory full of YAML files
+    # using the schema described by https://github.com/phe-genomics/variant_definitions/
 
     vocs = {"reference": {}}
 
+    # the spec explicitly states the extension will be .yml, and so we can rely on it
     variant_files = mutations_dir.glob("*.yml")
 
     for variant in variant_files:
 
-        voc, reference, mutations = load_variant_from_phe_yaml(variant, reference_path)
+        voc = variant.stem  # per the spec, the file name matches its 'unique-id' value
+        reference, mutations = load_variant_from_phe_yaml(variant, reference_path)
 
         if selected_vocs and voc not in selected_vocs:
             continue
@@ -208,7 +218,10 @@ def load_mutations_phe(
 
 def load_variant_from_phe_yaml(
     yaml_variant: Path, reference_path: Path
-) -> Tuple[str, Mutations, Mutations]:
+) -> Tuple[Mutations, Mutations]:
+    # Loads VOC signature mutations from a YAML file using
+    # Public Health England's format for SARS-CoV-2 variants:
+    # https://github.com/phe-genomics/variant_definitions/
 
     reference = {}
     voc = {}
@@ -260,7 +273,7 @@ def load_variant_from_phe_yaml(
 
         reference[position_range] = [wt]
 
-    return data["unique-id"], reference, voc
+    return reference, voc
 
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
