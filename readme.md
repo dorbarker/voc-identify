@@ -55,27 +55,34 @@ snakemake --jobs 2 -s voc-identity.smk -d path/to/your/project --configfile exam
 ## Command Line Arguments
 
 ```sh
-usage: mmmvi.py [-h] --bam BAM --reference FASTA --mutations TABULAR --outdir
-                DIR [--voc-column COLUMN] [--mutation-column COLUMN] [-d CHAR]
-                [--only-vocs [VOC [VOC ...]]] [-v]
+usage: mmmvi [-h] --bam BAM --reference FASTA --mutations PATH --outdir DIR
+             [--voc-column COLUMN] [--mutation-column COLUMN] [-d CHAR]
+             [--only-vocs [VOC [VOC ...]]] [-v] [--cite]
 
 optional arguments:
   -h, --help            show this help message and exit
   --bam BAM             Path to a BAM file aligned against the reference
   --reference FASTA     Path to FASTA-formatted complete reference genome
-  --mutations TABULAR   Path to tabular file describing Variants of Concern
+  --mutations PATH      Either a path to tabular file describing all variant
+                        mutations or a path to a directory containing PHE-
+                        formatted YAML files which each provide the signature
+                        mutations for a given variant
   --outdir DIR          Output directory; will be created if it does not
                         already exist
-  --voc-column COLUMN   Header for the column containing Variant of Concern
-                        names [PangoLineage]
+  --voc-column COLUMN   Header for the column of a tabular mutations file
+                        containing variant names, and ignored if a YAML
+                        diectory is provided [PangoLineage]
   --mutation-column COLUMN
-                        Header for the column containing mutation descriptions
-                        [NucName]
+                        Header for the column of a tabular mutations file
+                        containing mutation descriptions, and ignored if a
+                        YAML diectory is provided [NucName]
   -d CHAR, --delimiter CHAR
                         Delimiter character for tabular input and output [TAB]
   --only-vocs [VOC [VOC ...]]
                         Look only for these variants, plus the reference
   -v, --version         show program's version number and exit
+  --cite                Print the citation in BibTeX format and exit
+
 ```
 
 ## The Mutations File
@@ -88,6 +95,12 @@ respectively. Additional columns are ignored.
 
 All positions are relative to the reference genome and 1-based _i.e.,_ the first
 position in the genome is position 1.
+
+As of version `0.10.0`, a directory containing YAML files using the format 
+described by Public Health England may be used in place of the mutations file.
+The specification for this format can be found
+[here](https://github.com/phe-genomics/variant_definitions/). To use these variant
+definitions, provide a path to the directory containing the YAML files.
 
 ```sh
 # mutations.tsv

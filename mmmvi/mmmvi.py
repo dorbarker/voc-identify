@@ -3,7 +3,7 @@ import logging
 
 from pathlib import Path
 
-from mmmvi import __version__
+from mmmvi import __version__, CitationAction
 from mmmvi.lib import load_data, reporting, search
 
 logging.basicConfig(
@@ -12,6 +12,7 @@ logging.basicConfig(
 
 
 def arguments():
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -87,7 +88,16 @@ def arguments():
         "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
     )
 
-    return parser.parse_args()
+    parser.add_argument(
+        "--cite",
+        nargs=0,
+        action=CitationAction,
+        help="Print the citation in BibTeX format and exit",
+    )
+
+    args = parser.parse_args()
+
+    return args
 
 
 def main():
