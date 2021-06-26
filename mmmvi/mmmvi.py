@@ -3,7 +3,7 @@ import logging
 
 from pathlib import Path
 
-from mmmvi import __version__
+from mmmvi import __version__, CitationAction
 from mmmvi.lib import load_data, reporting, search
 
 logging.basicConfig(
@@ -12,6 +12,7 @@ logging.basicConfig(
 
 
 def arguments():
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -34,8 +35,11 @@ def arguments():
         "--mutations",
         required=True,
         type=Path,
-        metavar="TABULAR",
-        help="Path to tabular file describing Variants of Concern",
+        metavar="PATH",
+        help="""Either a path to tabular file describing all variant 
+                mutations or a path to a directory containing PHE-formatted
+                YAML files which each provide the signature mutations for a
+                given variant""",
     )
 
     parser.add_argument(
@@ -50,14 +54,18 @@ def arguments():
         "--voc-column",
         default="PangoLineage",
         metavar="COLUMN",
-        help="Header for the column containing Variant of Concern names [PangoLineage]",
+        help="""Header for the column of a tabular mutations file containing 
+                variant names, and ignored if a YAML diectory is provided 
+                [PangoLineage]""",
     )
 
     parser.add_argument(
         "--mutation-column",
         default="NucName",
         metavar="COLUMN",
-        help="Header for the column containing mutation descriptions [NucName]",
+        help="""Header for the column of a tabular mutations file containing 
+                mutation descriptions, and ignored if a YAML diectory is 
+                provided [NucName]""",
     )
 
     parser.add_argument(
@@ -80,7 +88,16 @@ def arguments():
         "-v", "--version", action="version", version=f"{parser.prog} {__version__}"
     )
 
-    return parser.parse_args()
+    parser.add_argument(
+        "--cite",
+        nargs=0,
+        action=CitationAction,
+        help="Print the citation in BibTeX format and exit",
+    )
+
+    args = parser.parse_args()
+
+    return args
 
 
 def main():

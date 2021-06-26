@@ -2,13 +2,40 @@ import itertools
 import logging
 import re
 import string
+import yaml
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import pandas as pd
 import pysam
 
-from mmmvi.lib.types import VoCs, Reads
+from mmmvi.lib.types import VoCs, Reads, Mutations
+
+
+def load_mutations(
+    mutations_path: Path,
+    reference_path: Path,
+    voc_col: str,
+    mut_col: str,
+    delimiter: str,
+    selected_vocs: List[str],
+) -> VoCs:
+    # Decides whether to load variant definitions from a tabular file or from a directory
+    # containing Public Health England-formatted YAML files.
+    #
+    # If the path provided by the --mutations command line argument is a file,
+    # load_tabular_mutations is attempted. If the path instead refers to a directory,
+    # load_mutations_phe is attempted.
+
+    if mutations_path.is_file():
+        vocs = load_tabular_mutations(
+            mutations_path, reference_path, voc_col, mut_col, delimiter, selected_vocs
+        )
+
+    elif mutations_path.is_dir():
+        vocs = load_mutations_phe(mutations_path, reference_path, selected_vocs)
+
+    return vocs
 
 
 def load_reference(reference: Path) -> str:
@@ -108,7 +135,7 @@ def parse_insertion(s: str):
     return position_range, wt, mutation
 
 
-def load_mutations(
+def load_tabular_mutations(
     mutations_path: Path,
     reference_path: Path,
     voc_col: str,
@@ -137,7 +164,16 @@ def load_mutations(
         if selected_vocs and voc not in selected_vocs:
             continue
 
-        position_range, wt, mutant = parse_mutation(row[mut_col])
+        mutation_string = row[mut_col].strip()
+
+        try:
+            position_range, wt, mutant = parse_mutation(mutation_string)
+
+        # catch *all* exceptions from parsing,
+        # because any problems here should stop the program
+        except Exception:
+            msg = f"Invalid mutation string: '{mutation_string}'"
+            raise InvalidMutation(msg)
 
         if voc not in vocs:
             vocs[voc] = {}
@@ -153,6 +189,91 @@ def load_mutations(
         vocs["reference"][position_range] = [wt]
 
     return vocs
+
+
+def load_mutations_phe(
+    mutations_dir: Path, reference_path: Path, selected_vocs: List[str]
+) -> VoCs:
+    # Manages loading variant definitions from a directory full of YAML files
+    # using the schema described by https://github.com/phe-genomics/variant_definitions/
+
+    vocs = {"reference": {}}
+
+    # the spec explicitly states the extension will be .yml, and so we can rely on it
+    variant_files = mutations_dir.glob("*.yml")
+
+    for variant in variant_files:
+
+        voc = variant.stem  # per the spec, the file name matches its 'unique-id' value
+        reference, mutations = load_variant_from_phe_yaml(variant, reference_path)
+
+        if selected_vocs and voc not in selected_vocs:
+            continue
+
+        vocs["reference"].update(reference)
+        vocs[voc] = mutations
+
+    return vocs
+
+
+def load_variant_from_phe_yaml(
+    yaml_variant: Path, reference_path: Path
+) -> Tuple[Mutations, Mutations]:
+    # Loads VOC signature mutations from a YAML file using
+    # Public Health England's format for SARS-CoV-2 variants:
+    # https://github.com/phe-genomics/variant_definitions/
+
+    reference = {}
+    voc = {}
+
+    data = yaml.safe_load(yaml_variant.read_text())
+    reference_seq = load_reference(reference_path)
+
+    for mutation in data["variants"]:
+
+        start = mutation["one-based-reference-position"] - 1
+
+        if mutation["type"] == "SNP":
+
+            wt = (mutation["reference-base"],)
+            mutant = (mutation["variant-base"],)
+            position_range = (start,)
+
+        elif mutation["type"] == "MNP":
+
+            wt = tuple(mutation["reference-base"])
+            mutant = tuple(mutation["variant-base"])
+            position_range = tuple(range(start, start + len(wt)))
+
+        elif mutation["type"] == "insertion":
+
+            mutant = tuple(mutation["variant-base"][1:])
+            wt = tuple(None for _ in mutant)
+            position_range = (start, None, start + 1)
+
+        elif mutation["type"] == "deletion":
+
+            position_range = tuple(
+                range(start, start + len(mutation["reference-base"]) - 1)
+            )
+            wt = (None,)
+            mutant = tuple(None for _ in position_range)
+
+        else:
+            msg = "Mutation type '{}' is not implemented".format(mutation["type"])
+            raise NotImplementedError(msg)
+
+        if wt == (None,):
+            wt = tuple(reference_seq[position] for position in position_range)
+
+        try:
+            voc[position_range].add(mutant)
+        except KeyError:
+            voc[position_range] = {mutant}
+
+        reference[position_range] = [wt]
+
+    return reference, voc
 
 
 def load_reads(bam_path: Path, ref_path: Path) -> Reads:
@@ -183,3 +304,7 @@ def load_reads(bam_path: Path, ref_path: Path) -> Reads:
 
                 reads[seq] = {"reads": {read_name}, "read_obj": read}
     return reads
+
+
+class InvalidMutation(Exception):
+    pass
