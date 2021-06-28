@@ -26,7 +26,10 @@ pip install git+https://github.com/dorbarker/voc-identify.git
 ## Basic Usage
 
 ```sh
-mmmvi --bam your_sample.bam --mutations mutations.tsv --reference reference.fasta --outdir reports/your_sample
+mmmvi --bam your_sample.bam        \
+      --mutations mutations.tsv    \
+      --reference reference.fasta  \
+      --outdir reports/your_sample 
 ```
 
 ## Restrict your search to specific variants
@@ -37,6 +40,22 @@ mmmvi --bam your_sample.bam        \
       --reference reference.fasta  \
       --outdir reports/your_sample \
       --only-vocs B.1.1.7 P.1
+```
+
+## Loading variant definitions from Public Health England YAML files
+
+```sh
+# Get the definitions for the first time
+git clone https://github.com/phe-genomics/variant_definitions/
+
+# Update existing definitions
+git -C path/to/variant_definitions/ pull
+
+mmmvi --mutations path/to/variant_definitions/variant_yaml/ \
+      --bam your_sample.bam                                 \
+      --reference reference.fasta                           \
+      --outdir reports/your_sample                          \
+      --only-vocs unloved-crouton denture-daughter
 ```
 
 ## Automation with Snakemake
