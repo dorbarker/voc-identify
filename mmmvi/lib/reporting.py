@@ -156,7 +156,7 @@ def theoretical_maximum(reads: Reads, vocs: VoCs) -> pd.DataFrame:
 
     all_lengths = []
     for seq, read_data in reads.items():
-        seq_length = len(seq)
+        seq_length = read_data["read_obj"].query_alignment_length
         for _ in read_data["reads"]:
             all_lengths.append(seq_length)
 

@@ -32,8 +32,12 @@ def load_mutations(
             mutations_path, reference_path, voc_col, mut_col, delimiter, selected_vocs
         )
 
-    elif mutations_path.is_dir():
+    elif mutations_path.is_dir() and list(mutations_path.glob("*.yml")):
         vocs = load_mutations_phe(mutations_path, reference_path, selected_vocs)
+
+    else:
+        msg = f"{mutations_path} does not appear to be a readable file or a directory containing .yml files"
+        raise FileNotFoundError(msg)
 
     return vocs
 
