@@ -56,7 +56,7 @@ def arguments():
         default="PangoLineage",
         metavar="COLUMN",
         help="""Header for the column of a tabular mutations file containing 
-                variant names, and ignored if a YAML diectory is provided 
+                variant names, and ignored if a YAML directory is provided 
                 [PangoLineage]""",
     )
 
@@ -65,7 +65,7 @@ def arguments():
         default="NucName",
         metavar="COLUMN",
         help="""Header for the column of a tabular mutations file containing 
-                mutation descriptions, and ignored if a YAML diectory is 
+                mutation descriptions, and ignored if a YAML directory is 
                 provided [NucName]""",
     )
 

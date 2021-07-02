@@ -90,11 +90,11 @@ optional arguments:
                         already exist
   --voc-column COLUMN   Header for the column of a tabular mutations file
                         containing variant names, and ignored if a YAML
-                        diectory is provided [PangoLineage]
+                        directory is provided [PangoLineage]
   --mutation-column COLUMN
                         Header for the column of a tabular mutations file
                         containing mutation descriptions, and ignored if a
-                        YAML diectory is provided [NucName]
+                        YAML directory is provided [NucName]
   -d CHAR, --delimiter CHAR
                         Delimiter character for tabular input and output [TAB]
   --only-vocs [VOC [VOC ...]]
