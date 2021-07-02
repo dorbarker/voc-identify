@@ -36,7 +36,7 @@ def load_mutations(
         vocs = load_mutations_phe(mutations_path, reference_path, selected_vocs)
 
     else:
-        msg = f"{mutations_path} does not appear to be a readable file or a directory containing .yml files"
+        msg = f"Error: {mutations_path} does not appear to be a readable file or a directory containing .yml files"
         raise FileNotFoundError(msg)
 
     return vocs

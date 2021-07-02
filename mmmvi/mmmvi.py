@@ -1,5 +1,6 @@
 import argparse
 import logging
+import sys
 
 from pathlib import Path
 
@@ -105,14 +106,18 @@ def main():
     args = arguments()
     logging.info("Begin")
 
-    vocs = load_data.load_mutations(
-        args.mutations,
-        args.reference,
-        args.voc_column,
-        args.mutation_column,
-        args.delimiter,
-        args.only_vocs,
-    )
+    try:
+        vocs = load_data.load_mutations(
+            args.mutations,
+            args.reference,
+            args.voc_column,
+            args.mutation_column,
+            args.delimiter,
+            args.only_vocs,
+        )
+    except FileNotFoundError as fne:
+        logging.error(str(fne))
+        sys.exit(1)
 
     reads = load_data.load_reads(args.bam, args.reference)
 
