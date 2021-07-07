@@ -16,12 +16,17 @@ def arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        "--bam",
-        required=True,
+    readsfile = parser.add_mutually_exclusive_group(required=True)
+    readsfile.add_argument(
+        "-i",
+        "--input",
         type=Path,
         metavar="BAM",
         help="Path to a BAM file aligned against the reference",
+    )
+
+    readsfile.add_argument(
+        "--bam", type=Path, metavar="BAM", help="a synonym of --input",
     )
 
     parser.add_argument(
@@ -98,6 +103,9 @@ def arguments():
 
     args = parser.parse_args()
 
+    if args.bam:
+        args.input = args.bam
+
     return args
 
 
@@ -119,7 +127,7 @@ def main():
         logging.error(str(fne))
         sys.exit(1)
 
-    reads = load_data.load_reads(args.bam, args.reference)
+    reads = load_data.load_reads(args.input, args.reference)
 
     mutation_results = search.find_mutations(reads, vocs)
 
