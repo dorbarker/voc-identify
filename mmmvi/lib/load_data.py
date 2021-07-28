@@ -280,22 +280,20 @@ def load_variant_from_phe_yaml(
     return reference, voc
 
 
-def load_reads(bam_path: Path, ref_path: Path) -> Reads:
+def load_reads(reads_path: Path, ref_path: Path) -> Reads:
     # Loads reads from a BAM file on disk and returns the unique reads.
     #
     # The the sequence is used as the key. The dictionary keeps track of the
     # set of read names which share that sequence, as well as a representative
     # pysam.AlignedSegment object
 
-    logging.info(f"Loading reads from {bam_path}")
+    logging.info(f"Loading reads from {reads_path}")
 
     reads = {}
 
-    with pysam.AlignmentFile(
-        bam_path, reference_filename=str(ref_path), mode="rb"
-    ) as bam:
+    with pysam.AlignmentFile(reads_path, reference_filename=str(ref_path)) as readsfile:
 
-        for read in bam:
+        for read in readsfile:
 
             seq = read.query_sequence
             orientation_tag = "rev" if read.is_reverse else "fwd"
