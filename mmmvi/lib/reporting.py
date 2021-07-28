@@ -1,5 +1,7 @@
+import bz2
 import itertools
 import logging
+import pickle
 import statistics
 from collections import Counter
 from pathlib import Path
@@ -532,11 +534,27 @@ def write_cooccurrence_matrices(voc_results, vocs, reads, outdir, delimiter):
         write_cooccurrence_matrix(variant, relative_matrices, data, delimiter)
 
 
+def write_raw_results(voc_results: VoCResults, vocs: VoCs, outdir: Path) -> None:
+
+    logging.info("Saving raw results")
+
+    raw_results = {"voc_results": voc_results, "vocs": vocs}
+
+    with bz2.BZ2File(outdir / "raw_results.bz2", "w") as bz2_file:
+        # Protocol 5 is highest protocol at time of writing
+
+        # Using literal 5 instead of pickle.HIGHEST_PROTOCOL
+        # to any head-off future compatibility issues
+        pickle.dump(raw_results, bz2_file, protocol=5)
+
+
 def write_reports(voc_results, vocs, reads, outdir: Path, delimiter: str):
 
     logging.info("Formatting and writing reports")
 
     outdir.mkdir(exist_ok=True, parents=True)
+
+    write_raw_results(voc_results, vocs, outdir)
 
     write_summary(voc_results, vocs, reads, outdir, delimiter)
 
