@@ -165,7 +165,7 @@ def theoretical_maximum(reads: Reads, vocs: VoCs) -> pd.DataFrame:
     voc_max = {}
     for voc in vocs:
 
-        position_ranges = sorted(vocs[voc].keys())
+        position_ranges = sorted(vocs[voc].keys(), key=lambda x: x[0])
 
         max_covered = 0
         for position_range in position_ranges:
